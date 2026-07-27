@@ -29,19 +29,18 @@
     background:linear-gradient(180deg,var(--teal),var(--teal-dark));
     color:#fff; padding:14px 24px; display:flex; align-items:center; justify-content:space-between;
   }
-  header .brand{display:flex; align-items:center; gap:12px;}
-  header .brand .menu{font-size:20px; opacity:.85;}
-  header .brand .name{font-weight:700; font-size:17px; letter-spacing:.2px;}
+  header .brand{display:flex; align-items:center; gap:14px;}
+  .logo-box{
+    background:#fff; border-radius:6px; padding:5px 10px; display:flex; align-items:center;
+    box-shadow:0 1px 2px rgba(0,0,0,.15);
+  }
+  .logo-box img{height:28px; display:block;}
   header .brand .sep{opacity:.5;}
   header .brand .sub{font-weight:400; opacity:.92; font-size:14px;}
   header .right{display:flex; align-items:center; gap:10px;}
   .phase-pill{
     background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35);
     padding:4px 12px; border-radius:14px; font-size:12px;
-  }
-  .avatar{
-    width:30px; height:30px; border-radius:50%; background:#8bc34a;
-    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; color:#1f3a12;
   }
 
   main{padding:20px 24px 40px;}
@@ -114,14 +113,12 @@
 
 <header>
   <div class="brand">
-    <span class="menu">&#9776;</span>
-    <span class="name">Garments Mantra</span>
+    <div class="logo-box"><img src="/assets/logo.png" alt="Garments Mantra" /></div>
     <span class="sep">|</span>
     <span class="sub">Sales Forecast Dashboard</span>
   </div>
   <div class="right">
     <span class="phase-pill">Live Forecast</span>
-    <div class="avatar">GM</div>
   </div>
 </header>
 

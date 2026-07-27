@@ -36,6 +36,7 @@ BASE_DIR = os.path.dirname(__file__)
 DATA_PATH = os.path.join(BASE_DIR, "data", "sales_orders_v2.xlsx")
 DASHBOARD_PATH = os.path.join(BASE_DIR, "output", "dashboard.html")
 VENDOR_DIR = os.path.join(BASE_DIR, "output", "vendor")
+ASSETS_DIR = os.path.join(BASE_DIR, "output", "assets")
 
 app = FastAPI(
     title="Garments Mantra — Demand Forecasting Service",
@@ -47,6 +48,9 @@ app = FastAPI(
 # what lets the dashboard's chart work on networks that block public CDNs
 # like cdnjs.cloudflare.com (common on corporate networks).
 app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
+
+# Serves the Garments Mantra logo and any other dashboard branding assets.
+app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 # Allows the dashboard (or any other origin, incl. the ERP front end) to
 # call this API directly from a browser. Tighten allow_origins to the
