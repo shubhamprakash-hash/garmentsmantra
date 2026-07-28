@@ -1,7 +1,7 @@
 """
 app.py
 ======
-Demand Forecasting microservice for Garments Mantra — Phase 1 (sales only).
+Demand Forecasting microservice for Garments Mantra.
 
 This is what the .NET team calls. They don't run Python, don't touch the
 model, and don't need to know it's Python at all — they just hit these
@@ -15,7 +15,17 @@ Then either:
     which itself calls the endpoints below (proves the full loop works).
   - Or call the endpoints directly, e.g.:
       curl http://localhost:8000/forecast/v1/all
+      curl "http://localhost:8000/forecast/v1/all?lookback_years=2"
       curl http://localhost:8000/forecast/v1/division/Woven
+
+TRAINING CUTOFF & VALIDATION:
+    The model trains only on data up to CUTOFF_DATE below (2026-03-31),
+    even though the source file has data beyond that. This is deliberate:
+    it lets the forecast be checked against what actually happened in the
+    months after the cutoff, since that data already exists in the sheet.
+    See forecast_model.get_actuals_for_months for how this works. Move
+    CUTOFF_DATE forward (or set to None) once you want a live forecast
+    instead of this validation view.
 
 WHEN THE .NET APIs (GetSalesHistory etc.) ARE READY:
     Only src/data_source.py changes (swap FileDataSource for APIDataSource).
@@ -24,10 +34,11 @@ WHEN THE .NET APIs (GetSalesHistory etc.) ARE READY:
 """
 
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from typing import Optional
 
 from src.data_source import FileDataSource
 from src.forecast_model import forecast_by_division
@@ -38,10 +49,13 @@ DASHBOARD_PATH = os.path.join(BASE_DIR, "output", "dashboard.html")
 VENDOR_DIR = os.path.join(BASE_DIR, "output", "vendor")
 ASSETS_DIR = os.path.join(BASE_DIR, "output", "assets")
 
+CUTOFF_DATE = "2026-03-31"   # train only on data up to here — see module docstring
+FORECAST_PERIODS = 4         # months ahead to forecast
+
 app = FastAPI(
     title="Garments Mantra — Demand Forecasting Service",
-    description="Phase 1: division-level sales forecasting.",
-    version="1.0.0",
+    description="Division-level sales forecasting with a selectable historical lookback window.",
+    version="1.1.0",
 )
 
 # Serves output/vendor/chart.umd.js locally at /vendor/chart.umd.js — this is
@@ -62,67 +76,103 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Forecast is computed once at startup and cached in memory — recomputing
-# on every request would mean re-reading a 70MB+ Excel file per call.
-# Call POST /forecast/v1/refresh after the underlying data changes.
-_cache: dict = {"results": None}
+# The raw dataframe is cached separately from computed forecasts — loading
+# it is the expensive part (Excel parse / parquet cache). Forecasts for
+# each lookback window (2 / 3 / 5 years / all) are cheap to compute and are
+# cached per-window so switching the dashboard's dropdown doesn't require
+# reloading the whole dataset.
+_df_cache: dict = {"df": None}
+_forecast_cache: dict = {}  # keyed by lookback_years (None means "all")
 
 
-def _compute():
-    df = FileDataSource(DATA_PATH).get_sales_data()
-    results = forecast_by_division(df, value_col="so_qty", periods=3)
-    _cache["results"] = results
-    return results
+def _get_df():
+    if _df_cache["df"] is None:
+        _df_cache["df"] = FileDataSource(DATA_PATH).get_sales_data()
+    return _df_cache["df"]
+
+
+def _compute(lookback_years: Optional[float] = None):
+    df = _get_df()
+    output = forecast_by_division(df, value_col="so_qty", periods=FORECAST_PERIODS,
+                                   cutoff_date=CUTOFF_DATE, lookback_years=lookback_years)
+    _forecast_cache[lookback_years] = output
+    return output
 
 
 @app.on_event("startup")
 def _on_startup():
-    _compute()
+    _compute(None)  # pre-warm the default (all-history) view
 
 
 @app.get("/health")
 def health():
     """Simple liveness check — useful for the .NET team to confirm the service is up."""
-    return {"status": "ok", "divisions_loaded": list((_cache["results"] or {}).keys())}
+    loaded = _forecast_cache.get(None)
+    return {
+        "status": "ok",
+        "divisions_loaded": list(loaded["divisions"].keys()) if loaded else [],
+        "cutoff_date": CUTOFF_DATE,
+    }
 
 
 @app.get("/forecast/v1/all")
-def get_all_forecasts():
-    """Returns the forecast for every division. This is what the dashboard calls."""
-    if _cache["results"] is None:
-        _compute()
-    return _cache["results"]
+def get_all_forecasts(
+    lookback_years: Optional[float] = Query(
+        None, description="Restrict training data to this many years before the cutoff. "
+                           "Omit for all available history. Examples: 2, 3, 5."
+    )
+):
+    """
+    Returns the forecast for every division. This is what the dashboard calls.
+    Pass ?lookback_years=2|3|5 to control how much history feeds the model —
+    if the data doesn't go back that far, all available data is used instead
+    (see the "lookback_clamped" flag in the response's "meta" section).
+    """
+    if lookback_years not in _forecast_cache:
+        _compute(lookback_years)
+    return _forecast_cache[lookback_years]
 
 
 @app.get("/forecast/v1/division/{division_name}")
-def get_division_forecast(division_name: str):
+def get_division_forecast(
+    division_name: str,
+    lookback_years: Optional[float] = Query(None),
+):
     """Returns the forecast for a single division (case/spacing-insensitive)."""
-    if _cache["results"] is None:
-        _compute()
+    if lookback_years not in _forecast_cache:
+        _compute(lookback_years)
 
+    divisions = _forecast_cache[lookback_years]["divisions"]
     normalized = division_name.lower().replace(" ", "").replace("-", "")
-    for name, result in _cache["results"].items():
+    for name, result in divisions.items():
         if name.lower().replace(" ", "").replace("-", "") == normalized:
             return result
 
     raise HTTPException(
         status_code=404,
-        detail=f"Division '{division_name}' not found. Available: {list(_cache['results'].keys())}",
+        detail=f"Division '{division_name}' not found. Available: {list(divisions.keys())}",
     )
 
 
 @app.post("/forecast/v1/refresh")
 def refresh_forecast():
     """
-    Recomputes the forecast from the current data file. Call this after the
-    underlying Excel/API data has been updated, instead of restarting the
-    whole service. Also deletes the parquet cache so the next load actually
-    re-reads the source file rather than serving stale cached data.
+    Recomputes forecasts for all cached lookback windows from the current
+    data file. Call this after the underlying Excel/API data has been
+    updated, instead of restarting the whole service. Also deletes the
+    parquet cache so the next load actually re-reads the source file
+    rather than serving stale cached data.
     """
     cache_path = os.path.splitext(DATA_PATH)[0] + ".parquet"
     if os.path.exists(cache_path):
         os.remove(cache_path)
-    return _compute()
+
+    _df_cache["df"] = None
+    windows_to_refresh = list(_forecast_cache.keys()) or [None]
+    _forecast_cache.clear()
+    for w in windows_to_refresh:
+        _compute(w)
+    return {"status": "refreshed", "windows_recomputed": [w or "all" for w in windows_to_refresh]}
 
 
 @app.get("/")

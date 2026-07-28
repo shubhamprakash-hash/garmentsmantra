@@ -23,7 +23,7 @@
   body{
     margin:0; background:var(--bg); color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-    font-size:14px;
+    font-size:16px;
   }
   header{
     background:linear-gradient(180deg,var(--teal),var(--teal-dark));
@@ -36,22 +36,38 @@
   }
   .logo-box img{height:28px; display:block;}
   header .brand .sep{opacity:.5;}
-  header .brand .sub{font-weight:400; opacity:.92; font-size:14px;}
+  header .brand .sub{font-weight:500; opacity:.95; font-size:16px;}
   header .right{display:flex; align-items:center; gap:10px;}
   .phase-pill{
     background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35);
-    padding:4px 12px; border-radius:14px; font-size:12px;
+    padding:5px 14px; border-radius:14px; font-size:13.5px; font-weight:600;
   }
 
   main{padding:20px 24px 40px;}
 
+  .control-bar{
+    background:var(--card); border:1px solid var(--border); border-radius:8px;
+    padding:14px 18px; margin-bottom:16px; display:flex; align-items:center;
+    justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+  .control-bar .label-group{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+  .control-bar .ctl-label{font-weight:700; font-size:14.5px; color:var(--text);}
+  .lookback-btns{display:flex; gap:6px; flex-wrap:wrap;}
+  .lookback-btn{
+    border:1px solid var(--border); background:#fff; border-radius:16px; padding:6px 14px;
+    font-size:13.5px; font-weight:600; cursor:pointer; color:var(--text);
+  }
+  .lookback-btn.active{background:var(--teal-dark); color:#fff; border-color:var(--teal-dark);}
+  .meta-line{font-size:13px; color:var(--muted); font-weight:500;}
+  .clamp-note{color:var(--amber-text); font-weight:600;}
+
   .stat-row{display:flex; gap:14px; margin-bottom:20px; flex-wrap:wrap;}
   .stat-badge{
     background:var(--teal-darker); color:#fff; border-radius:8px; padding:10px 16px;
-    display:flex; align-items:center; gap:10px; font-size:13px;
+    display:flex; align-items:center; gap:10px; font-size:14.5px;
   }
   .stat-badge .val{
-    background:rgba(255,255,255,.18); border-radius:5px; padding:3px 9px; font-weight:700; font-size:13px;
+    background:rgba(255,255,255,.18); border-radius:5px; padding:3px 10px; font-weight:700; font-size:14.5px;
   }
 
   .panel-row{display:grid; grid-template-columns:1.7fr 1fr; gap:16px; margin-bottom:16px;}
@@ -59,54 +75,59 @@
 
   .card{
     background:var(--card); border:1px solid var(--border); border-radius:8px;
-    box-shadow:0 1px 3px rgba(20,30,40,.06); overflow:hidden;
+    box-shadow:0 1px 3px rgba(20,30,40,.06); overflow:hidden; margin-bottom:16px;
   }
   .card-head{
     display:flex; align-items:center; justify-content:space-between;
     padding:14px 18px 4px;
   }
-  .card-head h2{font-size:16px; margin:0 0 2px; font-weight:700;}
-  .card-head .updated{font-size:11.5px; color:var(--muted);}
+  .card-head h2{font-size:18.5px; margin:0 0 3px; font-weight:700;}
+  .card-head .updated{font-size:13.5px; color:var(--muted); font-weight:500;}
   .card-body{padding:6px 0 4px;}
 
-  table{width:100%; border-collapse:collapse; font-size:13px;}
+  table{width:100%; border-collapse:collapse; font-size:14.5px;}
   thead th{
     background:var(--teal-dark); color:#fff; text-align:left; font-weight:600;
-    padding:10px 14px; font-size:12.5px;
+    padding:11px 12px; font-size:13.5px;
   }
-  tbody td{padding:10px 14px; border-bottom:1px solid var(--border);}
+  tbody td{padding:10px 12px; border-bottom:1px solid var(--border);}
   tbody tr:nth-child(even){background:#f7f9fb;}
   tbody tr:hover{background:#eef5f8;}
   .num{font-weight:600; color:var(--link);}
   .badge{
-    display:inline-block; padding:3px 9px; border-radius:12px; font-size:11.5px; font-weight:700;
+    display:inline-block; padding:4px 11px; border-radius:12px; font-size:13.5px; font-weight:700;
   }
   .badge.up{background:var(--green-bg); color:var(--green-text);}
   .badge.down{background:var(--red-bg); color:var(--red-text);}
   .badge.thin{background:var(--amber-bg); color:var(--amber-text);}
+  .badge.good{background:var(--green-bg); color:var(--green-text);}
+  .badge.mid{background:var(--amber-bg); color:var(--amber-text);}
+  .badge.poor{background:var(--red-bg); color:var(--red-text);}
+  .badge.neutral{background:#e7ecf0; color:var(--muted);}
 
   .conf-item{padding:12px 18px; border-bottom:1px solid var(--border);}
   .conf-item:last-child{border-bottom:none;}
   .conf-item .row1{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;}
-  .conf-item .division{font-weight:700; font-size:13.5px;}
-  .conf-item .point{font-weight:700; color:var(--link); font-size:13.5px;}
+  .conf-item .division{font-weight:700; font-size:15.5px;}
+  .conf-item .point{font-weight:700; color:var(--link); font-size:15.5px;}
   .range-track{height:6px; border-radius:3px; background:#e6ebef; position:relative; overflow:hidden;}
   .range-fill{position:absolute; top:0; bottom:0; background:linear-gradient(90deg,#7fb8cf,var(--teal-dark)); border-radius:3px;}
-  .conf-item .rangelabel{display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px;}
+  .conf-item .rangelabel{display:flex; justify-content:space-between; font-size:13px; color:var(--muted); font-weight:500; margin-top:4px;}
 
   .chart-card .card-body{padding:14px 18px 20px;}
   .chip-row{display:flex; gap:8px; padding:0 18px 10px; flex-wrap:wrap;}
   .chip{
-    border:1px solid var(--border); background:#fff; border-radius:14px; padding:5px 12px;
-    font-size:12px; cursor:pointer; color:var(--text); user-select:none;
+    border:1px solid var(--border); background:#fff; border-radius:14px; padding:6px 14px;
+    font-size:13.5px; cursor:pointer; color:var(--text); user-select:none;
   }
   .chip.active{background:var(--teal-dark); color:#fff; border-color:var(--teal-dark);}
 
   footer{
-    padding:18px 24px 30px; font-size:12px; color:var(--muted); font-weight:600;
+    padding:18px 24px 30px; font-size:13.5px; color:var(--muted); font-weight:600;
     letter-spacing:.2px; text-align:center;
   }
-  .method-note{font-size:11.5px; color:var(--muted); padding:2px 18px 14px;}
+  .method-note{font-size:13px; color:var(--muted); font-weight:500; padding:2px 18px 14px;}
+  .validation-note{font-size:13px; color:var(--muted); font-weight:500; padding:2px 18px 14px;}
 </style>
 </head>
 <body>
@@ -124,6 +145,14 @@
 
 <main>
 
+  <div class="control-bar">
+    <div class="label-group">
+      <span class="ctl-label">Training Window:</span>
+      <div class="lookback-btns" id="lookbackBtns"></div>
+    </div>
+    <div class="meta-line" id="metaLine"></div>
+  </div>
+
   <div class="stat-row" id="statRow"></div>
 
   <div class="panel-row">
@@ -131,19 +160,15 @@
       <div class="card-head">
         <div>
           <h2>Sales Forecast — By Division</h2>
-          <div class="updated">Model: Holt-Winters (yearly seasonality) where 24+ active months exist, else trend-only · Horizon: next 3 months</div>
+          <div class="updated" id="tableSubtitle">Model: ensemble of Holt-Winters (seasonal) + damped trend + 6-month average where 24+ active months exist, simpler fallbacks otherwise, Croston's method for sparse/intermittent divisions</div>
         </div>
       </div>
       <div class="card-body">
         <table>
           <thead>
-            <tr>
+            <tr id="forecastHeadRow">
               <th>Division</th>
               <th>Last 3-Mo Avg</th>
-              <th id="fMonth0"></th>
-              <th id="fMonth1"></th>
-              <th id="fMonth2"></th>
-              <th>Trend</th>
             </tr>
           </thead>
           <tbody id="forecastTableBody"></tbody>
@@ -163,11 +188,35 @@
     </div>
   </div>
 
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Forecast Accuracy — Validated Against Actuals</h2>
+        <div class="updated" id="validationSubtitle">Comparing predictions against what already happened</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead>
+          <tr>
+            <th>Division</th>
+            <th>Month</th>
+            <th>Forecast</th>
+            <th>Actual</th>
+            <th>Accuracy</th>
+          </tr>
+        </thead>
+        <tbody id="validationTableBody"></tbody>
+      </table>
+    </div>
+    <div class="validation-note" id="validationNote"></div>
+  </div>
+
   <div class="card chart-card">
     <div class="card-head">
       <div>
         <h2>Monthly Order Volume — History &amp; Forecast</h2>
-        <div class="updated">Solid = actual orders &nbsp;·&nbsp; Dashed = forecast</div>
+        <div class="updated">Solid = actual orders &nbsp;·&nbsp; Dashed = forecast &nbsp;·&nbsp; Dots = confirmed actuals for forecast months</div>
       </div>
     </div>
     <div class="chip-row" id="chipRow"></div>
@@ -182,245 +231,356 @@
 
 </main>
 
-<div id="loadingMsg" style="padding:40px; text-align:center; color:#6b7686; font-size:14px;">
+<div id="loadingMsg" style="padding:40px; text-align:center; color:#6b7686; font-size:15px;">
   Loading forecast data from the service...
 </div>
-<div id="errorMsg" style="display:none; padding:20px 24px; background:#f8d7da; color:#a33636; border-radius:6px; margin:20px 24px; font-size:13px;">
+<div id="errorMsg" style="display:none; padding:20px 24px; background:#f8d7da; color:#a33636; border-radius:6px; margin:20px 24px; font-size:14.5px;">
   Could not reach the forecasting API at <code>/forecast/v1/all</code>.
   Make sure the service is running (<code>uvicorn app:app --reload --port 8000</code>)
   and that you opened this page via <code>http://localhost:8000/</code> rather than as a local file.
 </div>
 
 <script>
-// ---------- Fetch live data from the forecasting microservice ----------
-fetch("/forecast/v1/all")
-  .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-  .then(DATA => {
-    document.getElementById("loadingMsg").style.display = "none";
-    try {
-      init(DATA);
-    } catch (renderErr) {
-      // Data loaded fine — the failure is in rendering, not the API.
-      // Don't show the "API unreachable" message for this; it would be wrong.
-      console.error("Dashboard rendering error (data loaded OK):", renderErr);
-      const box = document.getElementById("errorMsg");
-      box.innerHTML = "The forecast data loaded successfully, but the dashboard hit an error while displaying it: <code>" +
-        renderErr.message + "</code>. Check the browser console for details.";
-      box.style.display = "block";
-    }
-  })
-  .catch(err => {
-    document.getElementById("loadingMsg").style.display = "none";
-    document.getElementById("errorMsg").style.display = "block";
-    console.error("Failed to fetch forecast data:", err);
-  });
-
-function init(DATA) {
-const DIVISIONS = Object.keys(DATA);
 const COLORS = {
   "Knits - Kids": "#4a7f97",
   "Knits - Men":  "#8bc34a",
   "Woven":        "#c77b3f",
   "Others":       "#a35ba0"
 };
+const LOOKBACK_OPTIONS = [
+  { label: "2 Years", value: 2 },
+  { label: "3 Years", value: 3 },
+  { label: "5 Years", value: 5 },
+  { label: "All Available", value: null },
+];
+
+let currentLookback = null;
+let currentChart = null;
 
 function fmt(n){
   if (n === null || n === undefined) return "—";
   return Math.round(n).toLocaleString("en-IN");
 }
 
-// ---------- Stat badges ----------
-const statRow = document.getElementById("statRow");
-const totalOrders = DIVISIONS.reduce((s,d)=>s+DATA[d].total_history_orders,0);
-const badges = [
-  ["Divisions Forecasted", DIVISIONS.length],
-  ["Forecast Horizon", "3 Months"],
-  ["Model", "Holt-Winters / Trend (auto)"],
-  ["Order Rows Used", totalOrders.toLocaleString("en-IN")]
-];
-badges.forEach(([label,val])=>{
-  const el = document.createElement("div");
-  el.className = "stat-badge";
-  el.innerHTML = `<span>${label}</span><span class="val">${val}</span>`;
-  statRow.appendChild(el);
-});
-
-// ---------- Forecast table ----------
-const forecastMonths = DATA[DIVISIONS[0]].forecast_months;
-document.getElementById("fMonth0").textContent = forecastMonths[0];
-document.getElementById("fMonth1").textContent = forecastMonths[1];
-document.getElementById("fMonth2").textContent = forecastMonths[2];
-
-const tbody = document.getElementById("forecastTableBody");
-DIVISIONS.forEach(div=>{
-  const r = DATA[div];
-  const last3 = r.history.slice(-3);
-  const avg3 = last3.reduce((a,b)=>a+b,0)/last3.length;
-  const thin = r.active_months < 12;
-  const growing = r.forecast[2] > r.forecast[0];
-
-  let badge;
-  if (thin) badge = `<span class="badge thin">Limited Data</span>`;
-  else if (growing) badge = `<span class="badge up">&#8599; Growing</span>`;
-  else badge = `<span class="badge down">&#8600; Declining</span>`;
-
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td><strong>${div}</strong></td>
-    <td class="num">${fmt(avg3)}</td>
-    <td class="num">${fmt(r.forecast[0])}</td>
-    <td class="num">${fmt(r.forecast[1])}</td>
-    <td class="num">${fmt(r.forecast[2])}</td>
-    <td>${badge}</td>
-  `;
-  tbody.appendChild(tr);
-});
-
-// ---------- Confidence panel ----------
-document.getElementById("confSubtitle").textContent =
-  `Next month (${forecastMonths[0]}), ~80% band`;
-const confList = document.getElementById("confidenceList");
-const globalMax = Math.max(...DIVISIONS.map(d=>DATA[d].upper[0]));
-DIVISIONS.forEach(div=>{
-  const r = DATA[div];
-  const lo = r.lower[0], hi = r.upper[0], pt = r.forecast[0];
-  const leftPct = (lo/globalMax)*100;
-  const widthPct = ((hi-lo)/globalMax)*100;
-  const el = document.createElement("div");
-  el.className = "conf-item";
-  el.innerHTML = `
-    <div class="row1"><span class="division">${div}</span><span class="point">${fmt(pt)}</span></div>
-    <div class="range-track"><div class="range-fill" style="left:${leftPct}%; width:${widthPct}%;"></div></div>
-    <div class="rangelabel"><span>${fmt(lo)}</span><span>${fmt(hi)}</span></div>
-  `;
-  confList.appendChild(el);
-});
-
-// ---------- Chart ----------
-// Build a unified month axis across all divisions
-const allMonths = [];
-DIVISIONS.forEach(div=>{
-  DATA[div].history_months.concat(DATA[div].forecast_months).forEach(m=>{
-    if (!allMonths.includes(m)) allMonths.push(m);
-  });
-});
-// sort chronologically using Date parsing of "Mon YYYY"
-allMonths.sort((a,b)=> new Date(a) - new Date(b));
-
-function seriesFor(div, part){ // part: 'history' or 'forecast'
-  const r = DATA[div];
-  const months = part === "history" ? r.history_months : r.forecast_months;
-  const values = part === "history" ? r.history : r.forecast;
-  const map = {};
-  months.forEach((m,i)=> map[m]=values[i]);
-
-  if (part === "forecast" && r.history_months.length){
-    // connect the line from the last history point
-    const lastHistMonth = r.history_months[r.history_months.length-1];
-    map[lastHistMonth] = r.history[r.history.length-1];
-  }
-  return allMonths.map(m => (m in map) ? map[m] : null);
+function apiUrl(lookbackYears){
+  return lookbackYears == null ? "/forecast/v1/all" : `/forecast/v1/all?lookback_years=${lookbackYears}`;
 }
 
-const datasets = [];
-DIVISIONS.forEach(div=>{
-  const color = COLORS[div] || "#888";
-  datasets.push({
-    label: div + " (actual)",
-    data: seriesFor(div,"history"),
-    borderColor: color,
-    backgroundColor: color,
-    spanGaps:true,
-    tension:.25,
-    pointRadius:3,
-    borderWidth:2,
-    divisionKey:div, part:"history"
-  });
-  datasets.push({
-    label: div + " (forecast)",
-    data: seriesFor(div,"forecast"),
-    borderColor: color,
-    backgroundColor: color,
-    borderDash:[6,4],
-    spanGaps:true,
-    tension:.25,
-    pointRadius:3,
-    borderWidth:2,
-    divisionKey:div, part:"forecast"
-  });
-});
+function loadAndRender(lookbackYears){
+  currentLookback = lookbackYears;
+  renderLookbackButtons();
+  document.getElementById("loadingMsg").style.display = "block";
+  document.getElementById("errorMsg").style.display = "none";
 
-// ---------- Chart (built defensively — a blocked CDN shouldn't break the rest of the dashboard) ----------
-let chart = null;
-const chartCard = document.getElementById("trendChart").closest(".chart-card");
+  fetch(apiUrl(lookbackYears))
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(payload => {
+      document.getElementById("loadingMsg").style.display = "none";
+      try {
+        render(payload);
+      } catch (renderErr) {
+        console.error("Dashboard rendering error (data loaded OK):", renderErr);
+        const box = document.getElementById("errorMsg");
+        box.innerHTML = "The forecast data loaded successfully, but the dashboard hit an error while displaying it: <code>" +
+          renderErr.message + "</code>. Check the browser console for details.";
+        box.style.display = "block";
+      }
+    })
+    .catch(err => {
+      document.getElementById("loadingMsg").style.display = "none";
+      document.getElementById("errorMsg").style.display = "block";
+      console.error("Failed to fetch forecast data:", err);
+    });
+}
 
-if (typeof Chart === "undefined") {
-  chartCard.querySelector(".card-body").innerHTML =
-    '<div style="padding:16px; background:#fdf0d5; color:#a9701a; border-radius:6px; font-size:13px;">' +
-    'Chart library (Chart.js) failed to load from /vendor/chart.umd.js. The rest of the dashboard (table, confidence panel) ' +
-    'is unaffected. This usually means the service was not started correctly, or the output/vendor/chart.umd.js file is missing — ' +
-    'check that the vendor folder was included when this was deployed/copied.</div>';
-} else {
-  try {
-    const ctx = document.getElementById("trendChart").getContext("2d");
-    chart = new Chart(ctx, {
-      type:"line",
-      data:{ labels: allMonths, datasets: datasets },
-      options:{
-        responsive:true,
-        interaction:{ mode:"index", intersect:false },
-        plugins:{
-          legend:{ display:false },
-          tooltip:{
-            callbacks:{
-              label: (c) => `${c.dataset.label}: ${fmt(c.raw)}`
-            }
-          }
-        },
-        scales:{
-          y:{ beginAtZero:true, ticks:{ callback:(v)=>fmt(v) } },
-          x:{ ticks:{ maxRotation:45, minRotation:45 } }
-        }
+function renderLookbackButtons(){
+  const container = document.getElementById("lookbackBtns");
+  container.innerHTML = "";
+  LOOKBACK_OPTIONS.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.className = "lookback-btn" + (currentLookback === opt.value ? " active" : "");
+    btn.textContent = opt.label;
+    btn.onclick = () => loadAndRender(opt.value);
+    container.appendChild(btn);
+  });
+}
+
+function accuracyBadge(forecastVal, actualVal){
+  if (actualVal === 0 && forecastVal === 0) return { label: "Accurate", cls: "good" };
+  if (actualVal === 0) return { label: "n/a", cls: "neutral" };
+  const errPct = Math.abs((forecastVal - actualVal) / actualVal) * 100;
+  if (errPct < 15) return { label: `Accurate (${errPct.toFixed(0)}% off)`, cls: "good" };
+  if (errPct < 35) return { label: `Directional (${errPct.toFixed(0)}% off)`, cls: "mid" };
+  return { label: `Off (${errPct.toFixed(0)}%)`, cls: "poor" };
+}
+
+function backtestAccuracyBadge(mape){
+  if (mape === null || mape === undefined) return `<span class="badge neutral">Not enough history to measure</span>`;
+  if (mape < 15) return `<span class="badge good">Strong (~${mape.toFixed(0)}% error)</span>`;
+  if (mape < 30) return `<span class="badge good">Reasonable (~${mape.toFixed(0)}% error)</span>`;
+  if (mape < 50) return `<span class="badge mid">Directional only (~${mape.toFixed(0)}% error)</span>`;
+  return `<span class="badge poor">Use with caution (~${mape.toFixed(0)}% error)</span>`;
+}
+
+function render(payload){
+  const DATA = payload.divisions;
+  const meta = payload.meta;
+  const DIVISIONS = Object.keys(DATA);
+  const periods = meta.forecast_periods;
+
+  // ---------- Control bar meta line ----------
+  const metaLine = document.getElementById("metaLine");
+  let metaText = `Trained on ${meta.training_months} months (${meta.training_start} to ${meta.cutoff_date})`;
+  if (meta.lookback_clamped) {
+    metaText += ` <span class="clamp-note">— requested window exceeds available history, using all of it</span>`;
+  }
+  metaLine.innerHTML = metaText;
+
+  // ---------- Stat badges ----------
+  const statRow = document.getElementById("statRow");
+  statRow.innerHTML = "";
+  const totalOrders = DIVISIONS.reduce((s,d)=>s+DATA[d].total_history_orders,0);
+  const badges = [
+    ["Divisions Forecasted", DIVISIONS.length],
+    ["Forecast Horizon", `${periods} Months`],
+    ["Model", "Ensemble (Holt-Winters + Trend + Moving Avg) / Croston's"],
+    ["Order Rows Used", totalOrders.toLocaleString("en-IN")]
+  ];
+  badges.forEach(([label,val])=>{
+    const el = document.createElement("div");
+    el.className = "stat-badge";
+    el.innerHTML = `<span>${label}</span><span class="val">${val}</span>`;
+    statRow.appendChild(el);
+  });
+
+  // ---------- Forecast table ----------
+  const forecastMonths = DATA[DIVISIONS[0]].forecast_months;
+  const headRow = document.getElementById("forecastHeadRow");
+  headRow.innerHTML = `<th>Division</th><th>Last 3-Mo Avg</th>` +
+    forecastMonths.map(m => `<th>${m}</th>`).join("") + `<th>Trend</th><th>Historical Accuracy</th>`;
+
+  const tbody = document.getElementById("forecastTableBody");
+  tbody.innerHTML = "";
+  DIVISIONS.forEach(div=>{
+    const r = DATA[div];
+    const last3 = r.history.slice(-3);
+    const avg3 = last3.reduce((a,b)=>a+b,0)/last3.length;
+    const thin = r.active_months < 12;
+    const growing = r.forecast[r.forecast.length-1] > r.forecast[0];
+
+    let badge;
+    if (thin) badge = `<span class="badge thin">Limited Data</span>`;
+    else if (growing) badge = `<span class="badge up">&#8599; Growing</span>`;
+    else badge = `<span class="badge down">&#8600; Declining</span>`;
+
+    const forecastCells = r.forecast.map(v => `<td class="num">${fmt(v)}</td>`).join("");
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${div}</strong></td>
+      <td class="num">${fmt(avg3)}</td>
+      ${forecastCells}
+      <td>${badge}</td>
+      <td>${backtestAccuracyBadge(r.backtest_mape)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // ---------- Confidence panel ----------
+  document.getElementById("confSubtitle").textContent =
+    `Next month (${forecastMonths[0]}), ~80% band`;
+  const confList = document.getElementById("confidenceList");
+  confList.innerHTML = "";
+  const globalMax = Math.max(...DIVISIONS.map(d=>DATA[d].upper[0]));
+  DIVISIONS.forEach(div=>{
+    const r = DATA[div];
+    const lo = r.lower[0], hi = r.upper[0], pt = r.forecast[0];
+    const leftPct = (lo/globalMax)*100;
+    const widthPct = ((hi-lo)/globalMax)*100;
+    const el = document.createElement("div");
+    el.className = "conf-item";
+    el.innerHTML = `
+      <div class="row1"><span class="division">${div}</span><span class="point">${fmt(pt)}</span></div>
+      <div class="range-track"><div class="range-fill" style="left:${leftPct}%; width:${widthPct}%;"></div></div>
+      <div class="rangelabel"><span>${fmt(lo)}</span><span>${fmt(hi)}</span></div>
+    `;
+    confList.appendChild(el);
+  });
+
+  // ---------- Validation table (forecast vs actual, where known) ----------
+  const valBody = document.getElementById("validationTableBody");
+  valBody.innerHTML = "";
+  let anyRows = false, anyPartial = false, anyComplete = false;
+  DIVISIONS.forEach(div=>{
+    const r = DATA[div];
+    r.forecast_months.forEach((m, i) => {
+      const status = r.actual_status[i];
+      if (status === "unavailable") return; // future hasn't happened yet in the data
+      anyRows = true;
+      const actualVal = r.actual[i];
+      const forecastVal = r.forecast[i];
+      let accCell;
+      if (status === "partial") {
+        anyPartial = true;
+        accCell = `<span class="badge neutral">Partial month</span>`;
+      } else {
+        anyComplete = true;
+        const acc = accuracyBadge(forecastVal, actualVal);
+        accCell = `<span class="badge ${acc.cls}">${acc.label}</span>`;
+      }
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${div}</strong></td>
+        <td>${m}</td>
+        <td class="num">${fmt(forecastVal)}</td>
+        <td class="num">${fmt(actualVal)}${status === "partial" ? " *" : ""}</td>
+        <td>${accCell}</td>
+      `;
+      valBody.appendChild(tr);
+    });
+  });
+
+  const validationNote = document.getElementById("validationNote");
+  if (!anyRows) {
+    valBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:16px;">No actual data available yet for the forecast period.</td></tr>`;
+    validationNote.textContent = "";
+  } else {
+    let note = "These rows compare the forecast against order data that already exists beyond the training cutoff — a direct check of model accuracy, not a projection.";
+    if (anyPartial) note += " Rows marked with * cover a partial month only (the export doesn't reach month-end yet) and aren't a fair accuracy comparison.";
+    validationNote.textContent = note;
+  }
+
+  // ---------- Chart ----------
+  const allMonths = [];
+  DIVISIONS.forEach(div=>{
+    DATA[div].history_months.concat(DATA[div].forecast_months).forEach(m=>{
+      if (!allMonths.includes(m)) allMonths.push(m);
+    });
+  });
+  allMonths.sort((a,b)=> new Date(a) - new Date(b));
+
+  function seriesFor(div, part){
+    const r = DATA[div];
+    const months = part === "history" ? r.history_months : r.forecast_months;
+    const values = part === "history" ? r.history : r.forecast;
+    const map = {};
+    months.forEach((m,i)=> map[m]=values[i]);
+
+    if (part === "forecast" && r.history_months.length){
+      const lastHistMonth = r.history_months[r.history_months.length-1];
+      map[lastHistMonth] = r.history[r.history.length-1];
+    }
+    return allMonths.map(m => (m in map) ? map[m] : null);
+  }
+
+  function actualOverlayFor(div){
+    const r = DATA[div];
+    const map = {};
+    r.forecast_months.forEach((m,i) => {
+      if (r.actual_status[i] === "complete" || r.actual_status[i] === "partial") {
+        map[m] = r.actual[i];
       }
     });
-  } catch (chartErr) {
-    console.error("Chart rendering failed:", chartErr);
-    chartCard.querySelector(".card-body").innerHTML =
-      '<div style="padding:16px; background:#fdf0d5; color:#a9701a; border-radius:6px; font-size:13px;">' +
-      'Chart failed to render: ' + chartErr.message + '</div>';
+    return allMonths.map(m => (m in map) ? map[m] : null);
   }
-}
 
-// ---------- Chip filters ----------
-const chipRow = document.getElementById("chipRow");
-let activeDiv = null;
-function renderChips(){
-  if (!chart) { chipRow.innerHTML = ""; return; } // no point offering filters if the chart didn't load
-  chipRow.innerHTML = "";
-  const allChip = document.createElement("div");
-  allChip.className = "chip" + (activeDiv===null ? " active":"");
-  allChip.textContent = "All Divisions";
-  allChip.onclick = ()=>{ activeDiv=null; applyFilter(); renderChips(); };
-  chipRow.appendChild(allChip);
-
+  const datasets = [];
   DIVISIONS.forEach(div=>{
-    const chip = document.createElement("div");
-    chip.className = "chip" + (activeDiv===div ? " active":"");
-    chip.textContent = div;
-    chip.onclick = ()=>{ activeDiv=div; applyFilter(); renderChips(); };
-    chipRow.appendChild(chip);
+    const color = COLORS[div] || "#888";
+    datasets.push({
+      label: div + " (actual history)",
+      data: seriesFor(div,"history"),
+      borderColor: color, backgroundColor: color,
+      spanGaps:true, tension:.25, pointRadius:3, borderWidth:2,
+      divisionKey:div, part:"history"
+    });
+    datasets.push({
+      label: div + " (forecast)",
+      data: seriesFor(div,"forecast"),
+      borderColor: color, backgroundColor: color,
+      borderDash:[6,4], spanGaps:true, tension:.25, pointRadius:3, borderWidth:2,
+      divisionKey:div, part:"forecast"
+    });
+    datasets.push({
+      label: div + " (confirmed actual)",
+      data: actualOverlayFor(div),
+      borderColor: color, backgroundColor: "#fff",
+      showLine:false, pointRadius:6, pointBorderWidth:2, pointStyle:"circle",
+      divisionKey:div, part:"actual-overlay"
+    });
   });
-}
-function applyFilter(){
-  if (!chart) return;
-  chart.data.datasets.forEach(ds=>{
-    ds.hidden = activeDiv !== null && ds.divisionKey !== activeDiv;
-  });
-  chart.update();
-}
-renderChips();
 
+  // ---------- Chart (built defensively — a blocked/missing Chart.js shouldn't break the rest) ----------
+  if (currentChart) { currentChart.destroy(); currentChart = null; }
+  const chartCard = document.getElementById("trendChart").closest(".chart-card");
+  const cardBody = chartCard.querySelector(".card-body");
+  cardBody.innerHTML = '<canvas id="trendChart" height="90"></canvas>';
+
+  if (typeof Chart === "undefined") {
+    cardBody.innerHTML =
+      '<div style="padding:16px; background:#fdf0d5; color:#a9701a; border-radius:6px; font-size:14.5px;">' +
+      'Chart library (Chart.js) failed to load from /vendor/chart.umd.js. The rest of the dashboard (table, confidence panel) ' +
+      'is unaffected. This usually means the service was not started correctly, or output/vendor/chart.umd.js is missing.</div>';
+  } else {
+    try {
+      const ctx = document.getElementById("trendChart").getContext("2d");
+      currentChart = new Chart(ctx, {
+        type:"line",
+        data:{ labels: allMonths, datasets: datasets },
+        options:{
+          responsive:true,
+          interaction:{ mode:"index", intersect:false },
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label: (c) => `${c.dataset.label}: ${fmt(c.raw)}` } }
+          },
+          scales:{
+            y:{ beginAtZero:true, ticks:{ callback:(v)=>fmt(v) } },
+            x:{ ticks:{ maxRotation:45, minRotation:45 } }
+          }
+        }
+      });
+    } catch (chartErr) {
+      console.error("Chart rendering failed:", chartErr);
+      cardBody.innerHTML =
+        '<div style="padding:16px; background:#fdf0d5; color:#a9701a; border-radius:6px; font-size:14.5px;">' +
+        'Chart failed to render: ' + chartErr.message + '</div>';
+    }
+  }
+
+  // ---------- Chip filters ----------
+  const chipRow = document.getElementById("chipRow");
+  let activeDiv = null;
+  function renderChips(){
+    if (!currentChart) { chipRow.innerHTML = ""; return; }
+    chipRow.innerHTML = "";
+    const allChip = document.createElement("div");
+    allChip.className = "chip" + (activeDiv===null ? " active":"");
+    allChip.textContent = "All Divisions";
+    allChip.onclick = ()=>{ activeDiv=null; applyFilter(); renderChips(); };
+    chipRow.appendChild(allChip);
+
+    DIVISIONS.forEach(div=>{
+      const chip = document.createElement("div");
+      chip.className = "chip" + (activeDiv===div ? " active":"");
+      chip.textContent = div;
+      chip.onclick = ()=>{ activeDiv=div; applyFilter(); renderChips(); };
+      chipRow.appendChild(chip);
+    });
+  }
+  function applyFilter(){
+    if (!currentChart) return;
+    currentChart.data.datasets.forEach(ds=>{
+      ds.hidden = activeDiv !== null && ds.divisionKey !== activeDiv;
+    });
+    currentChart.update();
+  }
+  renderChips();
 }
+
+// ---------- Initial load ----------
+renderLookbackButtons();
+loadAndRender(null);
 </script>
 
 </body>

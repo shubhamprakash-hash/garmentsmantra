@@ -1,11 +1,18 @@
 """
 run_forecast.py
 ================
-Entry point for Phase 1: division-level sales forecasting.
+Entry point for division-level sales forecasting.
 
 USAGE TODAY:
     python run_forecast.py
     (reads data/sales_orders_v2.xlsx — the latest export from the team)
+
+The model is trained only on data up to CUTOFF_DATE below, even though the
+source file has data beyond that — this lets the forecast for the months
+after the cutoff be checked against what actually happened (see
+forecast_model.get_actuals_for_months). Move CUTOFF_DATE forward (or set it
+to None to use all available data) once you want the "real" live forecast
+instead of this validation view.
 
 USAGE ONCE THE .NET APIs ARE READY:
     Change the `source = FileDataSource(...)` line below to:
@@ -21,6 +28,10 @@ from src.forecast_model import forecast_by_division
 DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "sales_orders_v2.xlsx")
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output", "forecast_results.json")
 
+CUTOFF_DATE = "2026-03-31"   # train only on data up to here
+FORECAST_PERIODS = 4         # months ahead to forecast
+LOOKBACK_YEARS = None        # None = use all available history
+
 
 def main():
     # --- 1. Load data (swap this line for APIDataSource later) ---
@@ -28,23 +39,41 @@ def main():
     df = source.get_sales_data()
 
     print(f"Loaded {len(df)} order rows across {df['division'].nunique()} divisions")
-    print(f"Date range: {df['order_date'].min().date()} to {df['order_date'].max().date()}")
+    print(f"Full data range: {df['order_date'].min().date()} to {df['order_date'].max().date()}")
+    print(f"Training cutoff: {CUTOFF_DATE}  |  Forecast horizon: {FORECAST_PERIODS} months"
+          f"  |  Lookback: {LOOKBACK_YEARS or 'all available'}")
     print()
 
     # --- 2. Forecast (SO Qty used as the demand proxy — see forecast_model.py) ---
-    results = forecast_by_division(df, value_col="so_qty", periods=3)
+    output = forecast_by_division(df, value_col="so_qty", periods=FORECAST_PERIODS,
+                                   cutoff_date=CUTOFF_DATE, lookback_years=LOOKBACK_YEARS)
+    results = output["divisions"]
+    meta = output["meta"]
 
-    # --- 3. Print a quick summary to console ---
+    print(f"Trained on {meta['training_months']} months "
+          f"({meta['training_start']} to {meta['cutoff_date']})"
+          + (" [lookback clamped to available data]" if meta["lookback_clamped"] else ""))
+    print()
+
+    # --- 3. Print a quick summary to console, including actual-vs-forecast where known ---
     for division, r in results.items():
-        print(f"[{division}]  method: {r['method']}  (history: {r['total_history_orders']} orders)")
-        for m, v, lo, hi in zip(r["forecast_months"], r["forecast"], r["lower"], r["upper"]):
-            print(f"   {m}:  {v:,.0f}   (range {lo:,.0f} – {hi:,.0f})")
+        print(f"[{division}]  method: {r['method']}  (orders in training window: {r['total_history_orders']})")
+        for m, v, lo, hi, act, act_status in zip(
+            r["forecast_months"], r["forecast"], r["lower"], r["upper"], r["actual"], r["actual_status"]
+        ):
+            line = f"   {m}:  forecast {v:,.0f}   (range {lo:,.0f} - {hi:,.0f})"
+            if act_status == "complete":
+                diff_pct = ((act - v) / act * 100) if act else 0
+                line += f"   | ACTUAL {act:,.0f}  (forecast was {diff_pct:+.1f}% vs actual)"
+            elif act_status == "partial":
+                line += f"   | ACTUAL {act:,.0f} (partial month — not a fair comparison)"
+            print(line)
         print()
 
     # --- 4. Export for the dashboard ---
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
     with open(OUTPUT_PATH, "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(output, f, indent=2)
     print(f"Full results written to {OUTPUT_PATH}")
 
 
