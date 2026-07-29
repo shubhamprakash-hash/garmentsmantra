@@ -119,6 +119,7 @@
   .badge.mid{background:var(--amber-bg); color:var(--amber-text);}
   .badge.poor{background:var(--red-bg); color:var(--red-text);}
   .badge.neutral{background:#e7ecf0; color:var(--muted);}
+  .cell-sub{display:block; font-size:11.5px; font-weight:500; color:var(--muted); margin-top:2px;}
 
   .conf-item{padding:12px 18px; border-bottom:1px solid var(--border);}
   .conf-item:last-child{border-bottom:none;}
@@ -204,7 +205,7 @@
             <tbody id="forecastTableBody"></tbody>
           </table>
         </div>
-        <div class="method-note">Forecast is based on historical order volume. Divisions with fewer than 12 months of consistent order activity are flagged as Limited Data below.</div>
+        <div class="method-note">Forecast is based on historical order volume. Divisions with fewer than 12 months of consistent order activity are flagged as Limited Data; divisions that only order occasionally (not every month) are flagged as Sporadic, with the date of their last real order shown.</div>
       </div>
 
       <div class="card">
@@ -367,16 +368,28 @@ function render(payload){
     const growing = r.forecast[r.forecast.length-1] > r.forecast[0];
 
     let badge;
-    if (thin) badge = `<span class="badge thin">Limited Data</span>`;
+    if (r.is_sparse) {
+      badge = r.last_active_month
+        ? `<span class="badge thin">Sporadic — last order ${r.last_active_month}</span>`
+        : `<span class="badge thin">Sporadic — no orders yet</span>`;
+    } else if (thin) badge = `<span class="badge thin">Limited Data</span>`;
     else if (growing) badge = `<span class="badge up">&#8599; Growing</span>`;
     else badge = `<span class="badge down">&#8600; Declining</span>`;
+
+    // A flat 0 here (common for sporadic divisions when the last 3 months
+    // happened to have no orders) reads as "nothing coming" even though
+    // the division does order occasionally — so show the last real order
+    // underneath instead of a bare, context-free 0.
+    const avg3Cell = (avg3 === 0 && r.last_active_month)
+      ? `${fmt(avg3)}<span class="cell-sub">last order ${r.last_active_month}: ${fmt(r.last_active_value)}</span>`
+      : fmt(avg3);
 
     const forecastCells = r.forecast.map(v => `<td class="num">${fmt(v)}</td>`).join("");
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${div}</strong></td>
-      <td class="num">${fmt(avg3)}</td>
+      <td class="num">${avg3Cell}</td>
       ${forecastCells}
       <td>${badge}</td>
     `;

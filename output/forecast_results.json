@@ -122,7 +122,10 @@
         "unavailable",
         "unavailable"
       ],
-      "total_history_orders": 6480
+      "total_history_orders": 6480,
+      "is_sparse": false,
+      "last_active_month": "Mar 2026",
+      "last_active_value": 632727.0
     },
     "Knits - Men": {
       "method": "3-month moving average",
@@ -246,11 +249,14 @@
         "unavailable",
         "unavailable"
       ],
-      "total_history_orders": 2494
+      "total_history_orders": 2494,
+      "is_sparse": false,
+      "last_active_month": "Mar 2026",
+      "last_active_value": 193046.0
     },
     "Others": {
-      "method": "3-month moving average",
-      "backtest_smape": 174.3,
+      "method": "Croston's method (intermittent demand \u2014 3-month moving average produced an all-zero forecast, which isn't useful for planning, so an intermittent-demand estimate is used instead)",
+      "backtest_smape": null,
       "history": [
         0.0,
         0.0,
@@ -293,10 +299,10 @@
         0.0
       ],
       "forecast": [
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        4844.563997809275,
+        4844.563997809275,
+        4844.563997809275,
+        4844.563997809275
       ],
       "lower": [
         0.0,
@@ -305,10 +311,10 @@
         0.0
       ],
       "upper": [
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        90736.98119881035,
+        90736.98119881035,
+        90736.98119881035,
+        90736.98119881035
       ],
       "active_months": 6,
       "history_months": [
@@ -370,7 +376,10 @@
         "unavailable",
         "unavailable"
       ],
-      "total_history_orders": 9
+      "total_history_orders": 9,
+      "is_sparse": true,
+      "last_active_month": "Dec 2025",
+      "last_active_value": 140000.0
     },
     "Woven": {
       "method": "Seasonal naive (same month last year)",
@@ -494,7 +503,10 @@
         "unavailable",
         "unavailable"
       ],
-      "total_history_orders": 1544
+      "total_history_orders": 1544,
+      "is_sparse": false,
+      "last_active_month": "Mar 2026",
+      "last_active_value": 621721.0
     }
   },
   "meta": {

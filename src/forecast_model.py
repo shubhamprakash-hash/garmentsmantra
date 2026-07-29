@@ -344,6 +344,23 @@ def _forecast_one_series(series: pd.Series, periods: int) -> dict:
         method = "3-month moving average (fallback — selected model failed on full data)"
         backtest_smape = None
 
+    # Guard against a flat all-zero forecast for a division that HAS had
+    # real orders before — this happens when the winning method (e.g.
+    # 3-month moving average) simply landed on a recent run of zero
+    # months, which backtests fine (zero predicting zero is a "perfect"
+    # score) but isn't useful for planning. Croston's method instead uses
+    # the whole order history and the gaps between orders, so it still
+    # produces a non-zero rate for a division that orders sporadically.
+    if (n_active > 0 and not np.any(point_forecast > 0)
+            and fit_fn is not _candidate_croston):
+        croston_forecast = _candidate_croston(values, periods)
+        if np.any(croston_forecast > 0):
+            point_forecast = croston_forecast
+            method = (f"Croston's method (intermittent demand — {method} "
+                      "produced an all-zero forecast, which isn't useful for "
+                      "planning, so an intermittent-demand estimate is used instead)")
+            backtest_smape = None
+
     # Uncertainty band: use the backtest SMAPE as a % error, applied to
     # each point forecast, when available; else in-sample residual std.
     if backtest_smape is not None:
@@ -421,6 +438,21 @@ def forecast_by_division(df: pd.DataFrame, value_col: str = "so_qty", periods: i
         result["total_history_orders"] = int(len(df[(df["division"] == division) &
                                                       (df["order_date"] >= (range_start or data_min)) &
                                                       (df["order_date"] <= cutoff_date)]))
+
+        # Sparse/intermittent flag + last real order — lets the dashboard
+        # explain a zero "Last 3-Mo Avg" (e.g. "Sporadic — last order Dec
+        # 2025") instead of showing a bare 0 with no context.
+        active_ratio = result["active_months"] / len(series) if len(series) else 0
+        result["is_sparse"] = active_ratio < 0.4
+        nonzero_idx = np.nonzero(series.values > 0)[0]
+        if len(nonzero_idx):
+            last_idx = int(nonzero_idx[-1])
+            result["last_active_month"] = history_months[last_idx]
+            result["last_active_value"] = float(series.values[last_idx])
+        else:
+            result["last_active_month"] = None
+            result["last_active_value"] = None
+
         results[division] = result
 
     meta = {
