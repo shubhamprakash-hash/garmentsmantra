@@ -112,9 +112,13 @@ def _on_startup():
     _compute(None)  # pre-warm the default (all-history) view
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
-    """Simple liveness check — useful for the .NET team to confirm the service is up."""
+    """Simple liveness check — useful for the .NET team to confirm the service is up.
+    Accepts HEAD as well as GET: uptime monitors (e.g. UptimeRobot) default to
+    sending HEAD requests, which FastAPI/Starlette doesn't auto-allow on a
+    GET-only route — a HEAD request there returns 405, which uptime monitors
+    then wrongly report as the service being down."""
     loaded = _forecast_cache.get(None)
     return {
         "status": "ok",
@@ -183,10 +187,12 @@ def refresh_forecast():
     return {"status": "refreshed", "windows_recomputed": [w or "all" for w in windows_to_refresh]}
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def serve_dashboard():
     """Serves the dashboard UI, which itself calls /forecast/v1/all — this
-    is the full frontend+backend loop running together."""
+    is the full frontend+backend loop running together. Also accepts HEAD —
+    see the note on /health above; this is the route UptimeRobot is actually
+    pinging (garmentsmantra.onrender.com/), so it needs the same fix."""
     return FileResponse(DASHBOARD_PATH)
 
 
