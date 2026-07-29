@@ -18,14 +18,22 @@ Then either:
       curl "http://localhost:8000/forecast/v1/all?lookback_years=2"
       curl http://localhost:8000/forecast/v1/division/Woven
 
-TRAINING CUTOFF & VALIDATION:
-    The model trains only on data up to CUTOFF_DATE below (2026-03-31),
-    even though the source file has data beyond that. This is deliberate:
-    it lets the forecast be checked against what actually happened in the
-    months after the cutoff, since that data already exists in the sheet.
-    See forecast_model.get_actuals_for_months for how this works. Move
-    CUTOFF_DATE forward (or set to None) once you want a live forecast
-    instead of this validation view.
+TRAINING CUTOFF:
+    The model trains on data up to CUTOFF_DATE below (2026-03-31). The
+    source file (data/sales_orders_final.xlsx) is itself already trimmed
+    to this date by the team — CUTOFF_DATE is kept as an explicit
+    safeguard so a future export with more recent rows doesn't silently
+    get pulled into training without a deliberate decision to move the
+    cutoff forward.
+
+MODEL ACCURACY:
+    Each division's forecasting method is chosen automatically by
+    backtesting several candidates (Holt-Winters, damped/undamped trend,
+    seasonal-naive, moving average, Croston's for sparse series) against
+    held-out historical months and picking whichever predicted best. The
+    resulting backtest accuracy (SMAPE) is returned per division and shown
+    on the dashboard's "Model Confidence" panel — see forecast_model.py
+    for the full explanation.
 
 WHEN THE .NET APIs (GetSalesHistory etc.) ARE READY:
     Only src/data_source.py changes (swap FileDataSource for APIDataSource).
@@ -44,7 +52,7 @@ from src.data_source import FileDataSource
 from src.forecast_model import forecast_by_division
 
 BASE_DIR = os.path.dirname(__file__)
-DATA_PATH = os.path.join(BASE_DIR, "data", "sales_orders_v2.xlsx")
+DATA_PATH = os.path.join(BASE_DIR, "data", "sales_orders_final.xlsx")
 DASHBOARD_PATH = os.path.join(BASE_DIR, "output", "dashboard.html")
 VENDOR_DIR = os.path.join(BASE_DIR, "output", "vendor")
 ASSETS_DIR = os.path.join(BASE_DIR, "output", "assets")

@@ -55,11 +55,26 @@
   .lookback-btns{display:flex; gap:6px; flex-wrap:wrap;}
   .lookback-btn{
     border:1px solid var(--border); background:#fff; border-radius:16px; padding:6px 14px;
-    font-size:13.5px; font-weight:600; cursor:pointer; color:var(--text);
+    font-size:13.5px; font-weight:600; cursor:pointer; color:var(--text); transition:opacity .15s;
   }
   .lookback-btn.active{background:var(--teal-dark); color:#fff; border-color:var(--teal-dark);}
+  .lookback-btn:disabled{opacity:.5; cursor:not-allowed;}
   .meta-line{font-size:13px; color:var(--muted); font-weight:500;}
   .clamp-note{color:var(--amber-text); font-weight:600;}
+
+  .content-wrap{position:relative; min-height:200px;}
+  .content-overlay{
+    position:absolute; inset:0; background:rgba(238,241,244,.85); z-index:5;
+    display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px;
+    border-radius:8px;
+  }
+  .content-overlay.active{display:flex;}
+  .spinner{
+    width:38px; height:38px; border:4px solid #cdd8de; border-top-color:var(--teal-dark);
+    border-radius:50%; animation:spin .8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .overlay-text{font-size:14px; color:var(--teal-darker); font-weight:600;}
 
   .stat-row{display:flex; gap:14px; margin-bottom:20px; flex-wrap:wrap;}
   .stat-badge{
@@ -153,75 +168,90 @@
     <div class="meta-line" id="metaLine"></div>
   </div>
 
-  <div class="stat-row" id="statRow"></div>
+  <div id="fullPageLoading" style="padding:60px; text-align:center; color:#6b7686; font-size:15px;">
+    Loading forecast data from the service...
+  </div>
+  <div id="errorMsg" style="display:none; padding:20px 24px; background:#f8d7da; color:#a33636; border-radius:6px; margin:0 0 16px; font-size:14.5px;">
+    Could not reach the forecasting API at <code>/forecast/v1/all</code>.
+    Make sure the service is running (<code>uvicorn app:app --reload --port 8000</code>)
+    and that you opened this page via <code>http://localhost:8000/</code> rather than as a local file.
+  </div>
 
-  <div class="panel-row">
+  <div class="content-wrap" id="contentWrap" style="display:none;">
+    <div class="content-overlay" id="contentOverlay">
+      <div class="spinner"></div>
+      <div class="overlay-text">Updating forecast…</div>
+    </div>
+
+    <div class="stat-row" id="statRow"></div>
+
+    <div class="panel-row">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Sales Forecast — By Division</h2>
+            <div class="updated" id="tableSubtitle">Model selected per division by backtested accuracy</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <table>
+            <thead>
+              <tr id="forecastHeadRow">
+                <th>Division</th>
+                <th>Last 3-Mo Avg</th>
+              </tr>
+            </thead>
+            <tbody id="forecastTableBody"></tbody>
+          </table>
+        </div>
+        <div class="method-note">Forecast is based on historical order volume. Divisions with fewer than 12 months of consistent order activity are flagged as Limited Data below.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Forecast Confidence Range</h2>
+            <div class="updated" id="confSubtitle">Next month, ~80% band</div>
+          </div>
+        </div>
+        <div class="card-body" id="confidenceList"></div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>Sales Forecast — By Division</h2>
-          <div class="updated" id="tableSubtitle">Model: ensemble of Holt-Winters (seasonal) + damped trend + 6-month average where 24+ active months exist, simpler fallbacks otherwise, Croston's method for sparse/intermittent divisions</div>
+          <h2>Model Confidence — Backtested Accuracy</h2>
+          <div class="updated">How well each division's selected model predicted held-out historical months</div>
         </div>
       </div>
       <div class="card-body">
         <table>
           <thead>
-            <tr id="forecastHeadRow">
+            <tr>
               <th>Division</th>
-              <th>Last 3-Mo Avg</th>
+              <th>Model Used</th>
+              <th>Backtest Accuracy</th>
+              <th>Confidence</th>
             </tr>
           </thead>
-          <tbody id="forecastTableBody"></tbody>
+          <tbody id="validationTableBody"></tbody>
         </table>
       </div>
-      <div class="method-note">Forecast is based on historical order volume. Divisions with fewer than 12 months of consistent order activity are flagged as Limited Data below.</div>
+      <div class="validation-note" id="validationNote">Each model is chosen by testing it against real held-out months from the training history — not future data — and picking whichever predicted best. Accuracy shown is the average error (SMAPE) from that test.</div>
     </div>
 
-    <div class="card">
+    <div class="card chart-card">
       <div class="card-head">
         <div>
-          <h2>Forecast Confidence Range</h2>
-          <div class="updated" id="confSubtitle">Next month, ~80% band</div>
+          <h2>Monthly Order Volume — History &amp; Forecast</h2>
+          <div class="updated">Solid = actual orders &nbsp;·&nbsp; Dashed = forecast</div>
         </div>
       </div>
-      <div class="card-body" id="confidenceList"></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head">
-      <div>
-        <h2>Forecast Accuracy — Validated Against Actuals</h2>
-        <div class="updated" id="validationSubtitle">Comparing predictions against what already happened</div>
+      <div class="chip-row" id="chipRow"></div>
+      <div class="card-body">
+        <canvas id="trendChart" height="90"></canvas>
       </div>
-    </div>
-    <div class="card-body">
-      <table>
-        <thead>
-          <tr>
-            <th>Division</th>
-            <th>Month</th>
-            <th>Forecast</th>
-            <th>Actual</th>
-            <th>Accuracy</th>
-          </tr>
-        </thead>
-        <tbody id="validationTableBody"></tbody>
-      </table>
-    </div>
-    <div class="validation-note" id="validationNote"></div>
-  </div>
-
-  <div class="card chart-card">
-    <div class="card-head">
-      <div>
-        <h2>Monthly Order Volume — History &amp; Forecast</h2>
-        <div class="updated">Solid = actual orders &nbsp;·&nbsp; Dashed = forecast &nbsp;·&nbsp; Dots = confirmed actuals for forecast months</div>
-      </div>
-    </div>
-    <div class="chip-row" id="chipRow"></div>
-    <div class="card-body">
-      <canvas id="trendChart" height="90"></canvas>
     </div>
   </div>
 
@@ -230,15 +260,6 @@
   </footer>
 
 </main>
-
-<div id="loadingMsg" style="padding:40px; text-align:center; color:#6b7686; font-size:15px;">
-  Loading forecast data from the service...
-</div>
-<div id="errorMsg" style="display:none; padding:20px 24px; background:#f8d7da; color:#a33636; border-radius:6px; margin:20px 24px; font-size:14.5px;">
-  Could not reach the forecasting API at <code>/forecast/v1/all</code>.
-  Make sure the service is running (<code>uvicorn app:app --reload --port 8000</code>)
-  and that you opened this page via <code>http://localhost:8000/</code> rather than as a local file.
-</div>
 
 <script>
 const COLORS = {
@@ -256,6 +277,7 @@ const LOOKBACK_OPTIONS = [
 
 let currentLookback = null;
 let currentChart = null;
+let hasLoadedOnce = false;
 
 function fmt(n){
   if (n === null || n === undefined) return "—";
@@ -266,18 +288,30 @@ function apiUrl(lookbackYears){
   return lookbackYears == null ? "/forecast/v1/all" : `/forecast/v1/all?lookback_years=${lookbackYears}`;
 }
 
+function setButtonsDisabled(disabled){
+  document.querySelectorAll(".lookback-btn").forEach(b => b.disabled = disabled);
+}
+
 function loadAndRender(lookbackYears){
   currentLookback = lookbackYears;
   renderLookbackButtons();
-  document.getElementById("loadingMsg").style.display = "block";
+  setButtonsDisabled(true);
+
+  if (!hasLoadedOnce) {
+    document.getElementById("fullPageLoading").style.display = "block";
+  } else {
+    document.getElementById("contentOverlay").classList.add("active");
+  }
   document.getElementById("errorMsg").style.display = "none";
 
   fetch(apiUrl(lookbackYears))
     .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(payload => {
-      document.getElementById("loadingMsg").style.display = "none";
+      document.getElementById("fullPageLoading").style.display = "none";
+      document.getElementById("contentWrap").style.display = "block";
       try {
         render(payload);
+        hasLoadedOnce = true;
       } catch (renderErr) {
         console.error("Dashboard rendering error (data loaded OK):", renderErr);
         const box = document.getElementById("errorMsg");
@@ -287,9 +321,13 @@ function loadAndRender(lookbackYears){
       }
     })
     .catch(err => {
-      document.getElementById("loadingMsg").style.display = "none";
+      document.getElementById("fullPageLoading").style.display = "none";
       document.getElementById("errorMsg").style.display = "block";
       console.error("Failed to fetch forecast data:", err);
+    })
+    .finally(() => {
+      document.getElementById("contentOverlay").classList.remove("active");
+      setButtonsDisabled(false);
     });
 }
 
@@ -305,21 +343,11 @@ function renderLookbackButtons(){
   });
 }
 
-function accuracyBadge(forecastVal, actualVal){
-  if (actualVal === 0 && forecastVal === 0) return { label: "Accurate", cls: "good" };
-  if (actualVal === 0) return { label: "n/a", cls: "neutral" };
-  const errPct = Math.abs((forecastVal - actualVal) / actualVal) * 100;
-  if (errPct < 15) return { label: `Accurate (${errPct.toFixed(0)}% off)`, cls: "good" };
-  if (errPct < 35) return { label: `Directional (${errPct.toFixed(0)}% off)`, cls: "mid" };
-  return { label: `Off (${errPct.toFixed(0)}%)`, cls: "poor" };
-}
-
-function backtestAccuracyBadge(mape){
-  if (mape === null || mape === undefined) return `<span class="badge neutral">Not enough history to measure</span>`;
-  if (mape < 15) return `<span class="badge good">Strong (~${mape.toFixed(0)}% error)</span>`;
-  if (mape < 30) return `<span class="badge good">Reasonable (~${mape.toFixed(0)}% error)</span>`;
-  if (mape < 50) return `<span class="badge mid">Directional only (~${mape.toFixed(0)}% error)</span>`;
-  return `<span class="badge poor">Use with caution (~${mape.toFixed(0)}% error)</span>`;
+function confidenceBadge(smape){
+  if (smape === null || smape === undefined) return { label: "Not backtested", cls: "neutral" };
+  if (smape < 20) return { label: `High (±${smape.toFixed(0)}%)`, cls: "good" };
+  if (smape < 40) return { label: `Moderate (±${smape.toFixed(0)}%)`, cls: "mid" };
+  return { label: `Low (±${smape.toFixed(0)}%)`, cls: "poor" };
 }
 
 function render(payload){
@@ -343,7 +371,7 @@ function render(payload){
   const badges = [
     ["Divisions Forecasted", DIVISIONS.length],
     ["Forecast Horizon", `${periods} Months`],
-    ["Model", "Ensemble (Holt-Winters + Trend + Moving Avg) / Croston's"],
+    ["Model Selection", "Backtested (auto)"],
     ["Order Rows Used", totalOrders.toLocaleString("en-IN")]
   ];
   badges.forEach(([label,val])=>{
@@ -357,7 +385,7 @@ function render(payload){
   const forecastMonths = DATA[DIVISIONS[0]].forecast_months;
   const headRow = document.getElementById("forecastHeadRow");
   headRow.innerHTML = `<th>Division</th><th>Last 3-Mo Avg</th>` +
-    forecastMonths.map(m => `<th>${m}</th>`).join("") + `<th>Trend</th><th>Historical Accuracy</th>`;
+    forecastMonths.map(m => `<th>${m}</th>`).join("") + `<th>Trend</th>`;
 
   const tbody = document.getElementById("forecastTableBody");
   tbody.innerHTML = "";
@@ -381,7 +409,6 @@ function render(payload){
       <td class="num">${fmt(avg3)}</td>
       ${forecastCells}
       <td>${badge}</td>
-      <td>${backtestAccuracyBadge(r.backtest_mape)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -407,48 +434,24 @@ function render(payload){
     confList.appendChild(el);
   });
 
-  // ---------- Validation table (forecast vs actual, where known) ----------
+  // ---------- Model Confidence (backtest accuracy) table ----------
   const valBody = document.getElementById("validationTableBody");
   valBody.innerHTML = "";
-  let anyRows = false, anyPartial = false, anyComplete = false;
   DIVISIONS.forEach(div=>{
     const r = DATA[div];
-    r.forecast_months.forEach((m, i) => {
-      const status = r.actual_status[i];
-      if (status === "unavailable") return; // future hasn't happened yet in the data
-      anyRows = true;
-      const actualVal = r.actual[i];
-      const forecastVal = r.forecast[i];
-      let accCell;
-      if (status === "partial") {
-        anyPartial = true;
-        accCell = `<span class="badge neutral">Partial month</span>`;
-      } else {
-        anyComplete = true;
-        const acc = accuracyBadge(forecastVal, actualVal);
-        accCell = `<span class="badge ${acc.cls}">${acc.label}</span>`;
-      }
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><strong>${div}</strong></td>
-        <td>${m}</td>
-        <td class="num">${fmt(forecastVal)}</td>
-        <td class="num">${fmt(actualVal)}${status === "partial" ? " *" : ""}</td>
-        <td>${accCell}</td>
-      `;
-      valBody.appendChild(tr);
-    });
+    const conf = confidenceBadge(r.backtest_smape);
+    const smapeText = r.backtest_smape === null || r.backtest_smape === undefined
+      ? "Not enough history to backtest"
+      : `±${r.backtest_smape.toFixed(1)}% average error`;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${div}</strong></td>
+      <td>${r.method}</td>
+      <td>${smapeText}</td>
+      <td><span class="badge ${conf.cls}">${conf.label}</span></td>
+    `;
+    valBody.appendChild(tr);
   });
-
-  const validationNote = document.getElementById("validationNote");
-  if (!anyRows) {
-    valBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:16px;">No actual data available yet for the forecast period.</td></tr>`;
-    validationNote.textContent = "";
-  } else {
-    let note = "These rows compare the forecast against order data that already exists beyond the training cutoff — a direct check of model accuracy, not a projection.";
-    if (anyPartial) note += " Rows marked with * cover a partial month only (the export doesn't reach month-end yet) and aren't a fair accuracy comparison.";
-    validationNote.textContent = note;
-  }
 
   // ---------- Chart ----------
   const allMonths = [];
@@ -473,17 +476,6 @@ function render(payload){
     return allMonths.map(m => (m in map) ? map[m] : null);
   }
 
-  function actualOverlayFor(div){
-    const r = DATA[div];
-    const map = {};
-    r.forecast_months.forEach((m,i) => {
-      if (r.actual_status[i] === "complete" || r.actual_status[i] === "partial") {
-        map[m] = r.actual[i];
-      }
-    });
-    return allMonths.map(m => (m in map) ? map[m] : null);
-  }
-
   const datasets = [];
   DIVISIONS.forEach(div=>{
     const color = COLORS[div] || "#888";
@@ -500,13 +492,6 @@ function render(payload){
       borderColor: color, backgroundColor: color,
       borderDash:[6,4], spanGaps:true, tension:.25, pointRadius:3, borderWidth:2,
       divisionKey:div, part:"forecast"
-    });
-    datasets.push({
-      label: div + " (confirmed actual)",
-      data: actualOverlayFor(div),
-      borderColor: color, backgroundColor: "#fff",
-      showLine:false, pointRadius:6, pointBorderWidth:2, pointStyle:"circle",
-      divisionKey:div, part:"actual-overlay"
     });
   });
 

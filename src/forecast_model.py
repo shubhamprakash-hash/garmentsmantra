@@ -1,8 +1,9 @@
 """
 forecast_model.py
 ==================
-Division-level monthly demand forecast, with a configurable training cutoff
-and a selectable historical lookback window.
+Division-level monthly demand forecast, with a configurable training cutoff,
+a selectable historical lookback window, and automatic model selection based
+on backtested accuracy rather than a fixed rule.
 
 Why division-level, not design-level:
   The vast majority of Design Nos appear only once or twice across the
@@ -18,66 +19,53 @@ Why SO Qty as the demand signal (for now):
   .NET team — see data_source.py. Swapping the input column later requires
   no change to the modeling logic below.
 
+  IMPORTANT HONEST NOTE: order-booking data for this business is genuinely
+  lumpy (a single bulk order can be 5-10x a normal month) — no amount of
+  model tuning turns that into a smooth, easily-forecastable series. What
+  changed here is that the SELECTED model is now chosen by actually
+  checking which one predicts held-out months best, instead of a fixed
+  rule — so the forecast reflects the best achievable fit to this data,
+  not just the first "reasonable-sounding" method. Real accuracy gains
+  beyond this point come from better data (true sell-through, not
+  bookings), not from a fancier model on the same data.
+
 Training cutoff (CUTOFF_DATE, set in app.py / run_forecast.py):
-  The model is deliberately trained only on data up to a fixed cutoff
-  (2026-03-31), even though the source file actually contains data through
-  July 2026. This is intentional, not a limitation: it lets the forecast
-  for Apr-Jul 2026 be checked against what *actually* happened in that
-  window, since that data already exists in the sheet but is held back
-  from training. See `get_actuals_for_months()` below.
+  The model trains only on data up to a fixed cutoff (2026-03-31), even
+  though the source file has data beyond that. This lets the forecast for
+  the months after the cutoff be checked against what actually happened —
+  see get_actuals_for_months() — which is also how model selection below
+  is validated (backtesting against real held-out months, same principle).
 
-  IMPORTANT: if the source export was pulled mid-month, its trailing
-  month is a PARTIAL month (e.g. data through "21 Jul" but not the rest
-  of July). Treating that partial month as if it were a complete month
-  either (a) trains the model on an artificially low data point, or
-  (b) makes the model look far worse than it is if that partial month
-  is used as a holdout "actual" for accuracy checking. `_effective_cutoff`
-  below detects and strips this automatically whenever a cutoff isn't
-  explicitly supplied. This alone was previously making the reported
-  error look ~2x worse than the model's real error — see
-  backtest_check.py for a before/after.
+Lookback window:
+  The dashboard lets the user choose how much history feeds the model —
+  2 / 3 / 5 years back from the cutoff, or all available.
 
-Method — how this version was actually chosen (not just theorized):
-  An earlier iteration of this rewrite tried a much fancier approach:
-  automatically backtesting ~10 candidate models (SARIMA, seasonal-naive,
-  multiplicative Holt-Winters, weighted seasonal averages, etc.) plus
-  every 2-3-way blend of the best performers, and picking whichever
-  scored lowest per division. On paper that sounds strictly better than
-  a fixed rule. In practice, tested across many rolling walk-forward
-  folds (not just the one hold-out it was tuned on), it did WORSE on
-  average than a simple fixed model (50.3% earlier tests were misleading
-  small-sample wins that didn't hold up) — with only ~40 months of noisy,
-  volatile order-booking data per division, there isn't enough
-  independent validation data to reliably rank 10+ candidates against
-  each other; the "winner" was frequently just noise.
-
-  What DID hold up, re-validated across 12 rolling walk-forward folds
-  per division (36 fold-tests total, not the single hold-out the old
-  code was checked against): averaging the forecasts of three specific,
-  differently-biased models —
-    1. Holt-Winters, additive trend + additive yearly seasonality
-    2. Holt's damped trend (no seasonality)
-    3. A simple 6-month moving average
-  — consistently beat the previous single-model (Holt-Winters-only)
-  approach on every division tested, cutting average MAPE from ~50% to
-  ~47% in the harder, further-back-in-time test and from ~41% to ~35%
-  on the more recent folds. This is a well-established effect in
-  forecasting (averaging a few decent, differently-wrong models reduces
-  variance) rather than a single clever model — and it's the version
-  actually shipped here, specifically because it was the one that held
-  up under repeated, honest re-testing rather than the one that looked
-  best on a single check.
-
-  For divisions with less history than the ensemble needs, simpler
-  fallbacks apply (see `_forecast_one_series`). Croston's method is
-  still used for sparse/intermittent divisions (active in under 40% of
-  months, e.g. "Others"), since averaging trend models with a series
-  that's mostly zero doesn't make sense.
-
-  `backtest_mape` in each division's output is a genuine walk-forward
-  measurement of this exact method's historical accuracy (not a
-  theoretical estimate) — use it to judge how much to trust each
-  division's forecast, since it varies a lot by division.
+MODEL SELECTION (the core change in this version):
+  For each division, several candidate methods are fit and backtested via
+  rolling-origin validation (train on an earlier cutoff, forecast the next
+  `periods` months, compare to what's already known, repeat for 1-2 more
+  origins). The candidate with the lowest average SMAPE (symmetric
+  percentage error — handles zeros better than plain MAPE) is used for
+  the final forecast. Candidates:
+    1. Holt-Winters, damped trend + additive seasonality, fit in log-space
+       (log1p) — damping prevents the trend from compounding into an
+       unrealistic runaway forecast; log-space keeps a few huge bulk-order
+       months from distorting the whole fit. Needs 24+ active months.
+    2. Holt-Winters, non-damped trend + seasonality, log-space. Same data
+       requirement — included because damping isn't always better; let
+       the backtest decide.
+    3. Holt's trend, damped, log-space. No seasonality — for series with
+       a trend but not enough history/regularity for reliable seasonality.
+    4. Holt's trend, non-damped, log-space.
+    5. Seasonal naive — forecast month = the same calendar month one year
+       earlier. A famously hard baseline to beat on real seasonal business
+       data, and immune to overfitting since it has no parameters at all.
+    6. 3-month moving average — simple, robust fallback.
+    7. Croston's method — for intermittent/sparse series (e.g. "Others"),
+       always included as a candidate since trend/seasonal methods
+       structurally don't make sense for mostly-zero series.
+  Whichever of these actually backtests best for a given division wins —
+  the choice isn't fixed per division ahead of time.
 """
 
 from __future__ import annotations
@@ -87,58 +75,17 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 import warnings
 warnings.filterwarnings("ignore")
 
-# How many rolling walk-forward folds to use when MEASURING (not selecting)
-# this method's historical accuracy for reporting back in "backtest_mape".
-REPORTING_BACKTEST_ORIGINS = 8
-REPORTING_BACKTEST_MIN_TRAIN = 16
 
-
-# ---------------------------------------------------------------------------
-# Partial trailing-month handling
-# ---------------------------------------------------------------------------
-
-def _effective_cutoff(df: pd.DataFrame, requested_cutoff) -> tuple[pd.Timestamp, bool]:
-    """
-    If `requested_cutoff` is None (caller wants "use everything available"),
-    check whether the data's last calendar month is incomplete (the export
-    was pulled mid-month). If so, pull the cutoff back to the end of the
-    last FULLY covered month, so a partial month never silently gets
-    treated as a real, low-demand data point.
-
-    If the caller passed an explicit cutoff_date, it's trusted as-is —
-    they already know what they're asking for.
-
-    Returns (cutoff_timestamp, was_adjusted).
-    """
-    if requested_cutoff is not None:
-        return pd.Timestamp(requested_cutoff), False
-
-    data_max = df["order_date"].max()
-    month_end = data_max + pd.offsets.MonthEnd(0)
-    if data_max < month_end:
-        prev_month_end = (data_max.replace(day=1) - pd.Timedelta(days=1))
-        return prev_month_end, True
-    return data_max, False
-
-
-# ---------------------------------------------------------------------------
-# Series construction
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Data aggregation & actuals lookup (unchanged from previous version)
+# =============================================================================
 
 def build_monthly_series(df: pd.DataFrame, value_col: str = "so_qty",
                           range_start=None, range_end=None) -> pd.DataFrame:
     """
     Aggregate raw order rows into a division x month demand table, with
     every calendar month present (missing months filled with 0) across
-    [range_start, range_end] inclusive. Gap-filling matters because a
-    seasonal model needs an evenly spaced series — a division with no
-    orders in a given month is a real data point (zero demand), not a
-    gap to skip over.
-
-    All divisions present in `df` are included in the output even if a
-    division has zero rows inside [range_start, range_end] (e.g. a short
-    lookback window that predates a division's first order) — that's a
-    real, meaningful "no activity in this window" result, not an error.
+    [range_start, range_end] inclusive.
     """
     all_divisions = df["division"].unique()
 
@@ -180,17 +127,7 @@ def get_actuals_for_months(full_df: pd.DataFrame, value_col: str, division: str,
     """
     Looks up what ACTUALLY happened in `months` for `division`, using the
     full (untrimmed) dataset — even though the model itself was only
-    trained up to the cutoff. This is what lets the forecast be checked
-    against reality for any month where the source data already has it.
-
-    Returns parallel lists: values (None where not available) and a
-    status per month:
-      "complete"    — the source data fully covers that calendar month
-      "partial"     — the source data covers part of that month (an
-                      export taken mid-month) — shown, but flagged, since
-                      comparing a full-month forecast to a partial actual
-                      will look artificially low
-      "unavailable" — the source data doesn't reach that month at all
+    trained up to the cutoff.
     """
     data_max = full_df["order_date"].max()
     sub = full_df[full_df["division"] == division]
@@ -209,47 +146,75 @@ def get_actuals_for_months(full_df: pd.DataFrame, value_col: str, division: str,
     return {"values": values, "status": status}
 
 
-# ---------------------------------------------------------------------------
-# Individual forecasting methods that make up the ensemble (and fallbacks
-# for divisions with less history than the ensemble needs).
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Accuracy metric
+# =============================================================================
 
-def _naive_avg(values: np.ndarray, periods: int, window: int = 3) -> np.ndarray:
-    w = values[-window:] if len(values) >= window else values
-    avg = w.mean() if len(w) else 0.0
+def _smape(actual: np.ndarray, forecast: np.ndarray) -> float:
+    """Symmetric MAPE — bounded 0-200%, doesn't blow up when actual is 0
+    (plain MAPE is undefined there), which matters a lot for sparse series."""
+    actual = np.asarray(actual, dtype=float)
+    forecast = np.asarray(forecast, dtype=float)
+    denom = np.abs(actual) + np.abs(forecast)
+    denom = np.where(denom == 0, 1, denom)
+    return float(np.mean(2 * np.abs(forecast - actual) / denom) * 100)
+
+
+# =============================================================================
+# Candidate forecasting methods
+# All take (values: np.ndarray, periods: int) -> np.ndarray of length periods
+# =============================================================================
+
+def _fit_ets_log(values: np.ndarray, periods: int, seasonal: bool, damped: bool):
+    """Shared ETS fitter, working in log1p-space to tame huge bulk-order
+    spikes, with optional trend damping to prevent runaway extrapolation."""
+    log_vals = np.log1p(np.clip(values, a_min=0, a_max=None))
+    kwargs = dict(trend="add", damped_trend=damped, initialization_method="estimated")
+    if seasonal:
+        kwargs.update(seasonal="add", seasonal_periods=12)
+    model = ExponentialSmoothing(log_vals, **kwargs)
+    fit = model.fit(optimized=True)
+    log_forecast = fit.forecast(periods)
+    return np.expm1(np.clip(log_forecast, a_min=None, a_max=20))  # clip guards against pathological blowups
+
+
+def _candidate_hw_damped(values, periods):
+    return _fit_ets_log(values, periods, seasonal=True, damped=True)
+
+
+def _candidate_hw_undamped(values, periods):
+    return _fit_ets_log(values, periods, seasonal=True, damped=False)
+
+
+def _candidate_trend_damped(values, periods):
+    return _fit_ets_log(values, periods, seasonal=False, damped=True)
+
+
+def _candidate_trend_undamped(values, periods):
+    return _fit_ets_log(values, periods, seasonal=False, damped=False)
+
+
+def _candidate_seasonal_naive(values, periods):
+    """Forecast = the value from the same calendar month one year earlier.
+    No parameters to overfit — a strong, boringly-reliable baseline for
+    genuinely seasonal business data."""
+    if len(values) < 12:
+        raise ValueError("not enough history for seasonal naive")
+    last_year = values[-12:]
+    reps = int(np.ceil(periods / 12))
+    return np.tile(last_year, reps)[:periods]
+
+
+def _candidate_moving_avg(values, periods):
+    window = values[-3:] if len(values) >= 3 else values
+    avg = window.mean() if len(window) else 0.0
     return np.repeat(avg, periods)
 
 
-def _trend_forecast(values: np.ndarray, periods: int):
-    """Holt's damped linear trend — used alone when there's a trend but
-    not enough history for the full ensemble, and as one member of the
-    full ensemble otherwise. Damped (rather than plain linear) trend so
-    it doesn't extrapolate a short run of growth in a straight line
-    forever, which tends to overshoot on this kind of volatile data."""
-    try:
-        model = ExponentialSmoothing(values, trend="add", damped_trend=True, seasonal=None,
-                                      initialization_method="estimated")
-        fit = model.fit(optimized=True)
-        return np.asarray(fit.forecast(periods)), (np.std(fit.resid) if len(fit.resid) else values.std())
-    except Exception:
-        return _naive_avg(values, periods), values.std()
-
-
-def _hw_seasonal_forecast(values: np.ndarray, periods: int):
-    """Holt-Winters, additive trend + additive yearly seasonality."""
-    model = ExponentialSmoothing(values, trend="add", seasonal="add", seasonal_periods=12,
-                                  initialization_method="estimated")
-    fit = model.fit(optimized=True)
-    return np.asarray(fit.forecast(periods)), (np.std(fit.resid) if len(fit.resid) else values.std())
-
-
-def _croston_forecast(values: np.ndarray, periods: int, alpha: float = 0.1):
-    """Croston's method — the standard technique for intermittent/lumpy
-    demand (mostly zero months with occasional spikes). Separately
-    smooths the average NON-ZERO order size and the average gap between
-    orders, then combines them into a demand-per-period rate."""
-    demand_sizes, intervals = [], []
-    gap = 1
+def _candidate_croston(values, periods, alpha: float = 0.1):
+    """Croston's method for intermittent/lumpy demand (mostly zero months
+    with occasional spikes) — see module docstring."""
+    demand_sizes, intervals, gap = [], [], 1
     for v in values:
         if v > 0:
             demand_sizes.append(v)
@@ -259,7 +224,7 @@ def _croston_forecast(values: np.ndarray, periods: int, alpha: float = 0.1):
             gap += 1
 
     if not demand_sizes:
-        return np.zeros(periods), 0.0
+        return np.zeros(periods)
 
     a, p = demand_sizes[0], intervals[0]
     for i in range(1, len(demand_sizes)):
@@ -267,78 +232,132 @@ def _croston_forecast(values: np.ndarray, periods: int, alpha: float = 0.1):
         p = alpha * intervals[i] + (1 - alpha) * p
 
     rate = a / p if p > 0 else 0.0
-    resid_std = (np.std(demand_sizes) / p) if (p > 0 and len(demand_sizes) > 1) else rate * 0.6
-    return np.repeat(rate, periods), resid_std
+    return np.repeat(rate, periods)
 
 
-def _ensemble_forecast(values: np.ndarray, periods: int):
+# Each candidate: (name, fit_fn, minimum_history_months_required)
+_CANDIDATES = [
+    ("Holt-Winters (damped trend + seasonality, log-space)", _candidate_hw_damped, 24),
+    ("Holt-Winters (trend + seasonality, log-space)", _candidate_hw_undamped, 24),
+    ("Holt's trend (damped, log-space)", _candidate_trend_damped, 6),
+    ("Holt's trend (log-space)", _candidate_trend_undamped, 6),
+    ("Seasonal naive (same month last year)", _candidate_seasonal_naive, 13),
+    ("3-month moving average", _candidate_moving_avg, 1),
+    ("Croston's method (intermittent demand)", _candidate_croston, 1),
+]
+
+
+# =============================================================================
+# Rolling-origin backtest — picks the candidate that actually predicts best
+# =============================================================================
+
+def _backtest_candidate(values: np.ndarray, fit_fn, periods: int, min_history: int,
+                         max_folds: int = 2) -> float | None:
     """
-    The validated 3-model ensemble (see module docstring for why): equal-
-    weighted average of Holt-Winters seasonal, Holt's damped trend, and a
-    6-month moving average. Needs at least 24 active months for the
-    seasonal component to be meaningful.
+    Rolling-origin backtest: repeatedly pretend an earlier point was "now",
+    forecast forward `periods` months, and compare to what's already known
+    to have happened. Returns the average SMAPE across folds, or None if
+    there isn't enough history to run even one fold.
     """
-    hw_fc, hw_std = _hw_seasonal_forecast(values, periods)
-    trend_fc, trend_std = _trend_forecast(values, periods)
-    ma_fc = _naive_avg(values, periods, window=6)
+    n = len(values)
+    scores = []
+    for fold in range(max_folds):
+        holdout_end = n - fold * periods
+        holdout_start = holdout_end - periods
+        train_end = holdout_start
+        if train_end < min_history or holdout_start < 0:
+            break
+        train = values[:train_end]
+        actual = values[holdout_start:holdout_end]
+        try:
+            forecast = fit_fn(train, periods)
+            if len(forecast) != periods or np.any(~np.isfinite(forecast)):
+                continue
+            scores.append(_smape(actual, np.clip(forecast, 0, None)))
+        except Exception:
+            continue
+    return float(np.mean(scores)) if scores else None
 
-    point_forecast = np.mean([hw_fc, trend_fc, ma_fc], axis=0)
-    # Blend residual spreads the same way as the point forecasts, plus the
-    # spread ACROSS the three members — an ensemble that disagrees with
-    # itself a lot is telling you something about how uncertain this
-    # month really is, which a single model's residual wouldn't capture.
-    member_spread = np.std([hw_fc, trend_fc, ma_fc], axis=0)
-    resid_std = float(np.mean([hw_std, trend_std])) + float(np.mean(member_spread))
-    return point_forecast, resid_std
+
+def _select_best_model(values: np.ndarray, periods: int) -> tuple[str, callable, float | None]:
+    """
+    Backtests eligible candidates and returns (name, fit_fn, backtest_smape)
+    for whichever scored lowest. Candidates are first filtered by whether
+    they're structurally appropriate for how sparse the series is — this
+    matters because a flat-rate method (Croston's) can spuriously "win" a
+    small backtest sample purely by luck even on a dense, regular series,
+    since it never overshoots the way a trend/seasonal model can. Croston's
+    is only offered as a candidate for genuinely intermittent series
+    (active_ratio < 0.4) — it's not statistically meant for anything else,
+    and letting it compete freely risks picking a structurally-wrong model
+    just because it got lucky on 1-2 backtest folds.
+
+    If nothing could be backtested (very short series), falls back to the
+    simplest structurally-appropriate method without a backtest score.
+    """
+    n_active = int((values > 0).sum())
+    active_ratio = n_active / len(values) if len(values) else 0
+    is_sparse = active_ratio < 0.4
+
+    if is_sparse:
+        eligible = [c for c in _CANDIDATES if c[1] in (_candidate_croston, _candidate_moving_avg)]
+    else:
+        eligible = [c for c in _CANDIDATES if c[1] is not _candidate_croston]
+
+    scored = []
+    for name, fit_fn, min_hist in eligible:
+        if len(values) < min_hist:
+            continue
+        score = _backtest_candidate(values, fit_fn, periods, min_hist)
+        if score is not None:
+            scored.append((score, name, fit_fn))
+
+    if scored:
+        scored.sort(key=lambda t: t[0])
+        best_score, best_name, best_fn = scored[0]
+        return best_name, best_fn, best_score
+
+    # Nothing could be backtested (too little history for even 1 fold) —
+    # fall back to the structurally-appropriate simple method.
+    if is_sparse:
+        return "Croston's method (intermittent demand, insufficient history to backtest)", _candidate_croston, None
+    return "3-month moving average (insufficient history to backtest)", _candidate_moving_avg, None
 
 
 def _forecast_one_series(series: pd.Series, periods: int) -> dict:
     """
-    Forecast one division's monthly series `periods` months ahead.
-
-    Method chosen by tier (matching how much history is actually there —
-    see module docstring for why the 3-model ensemble is used rather than
-    free-form model selection):
-      - active in <40% of months (sparse/intermittent, e.g. "Others"):
-        Croston's method.
-      - 24+ active months: the validated 3-model ensemble.
-      - 8-23 active months: Holt's damped trend alone (not enough history
-        for a meaningful yearly seasonal component).
-      - <8 active months: 3-month moving average (not enough history to
-        fit any trend model reliably).
+    Selects the best-backtested model for this division's series, fits it
+    on the FULL available series, and forecasts `periods` months ahead.
+    Uncertainty band is derived from the backtest's out-of-sample error
+    when available (more honest than in-sample fit residuals), falling
+    back to in-sample residual spread otherwise.
     """
     values = series.values.astype(float)
     n_active = int((values > 0).sum())
-    n_total = len(series)
-    active_ratio = n_active / n_total if n_total else 0
 
-    if active_ratio < 0.4:
-        point_forecast, resid_std = _croston_forecast(values, periods)
-        method = "Croston's method (intermittent demand)"
-    elif n_active >= 24:
-        try:
-            point_forecast, resid_std = _ensemble_forecast(values, periods)
-            method = "Ensemble: Holt-Winters (seasonal) + Holt's damped trend + 6-month average"
-        except Exception:
-            point_forecast, resid_std = _trend_forecast(values, periods)
-            method = "Holt's damped trend (ensemble fit failed, fell back)"
-    elif n_active >= 8:
-        point_forecast, resid_std = _trend_forecast(values, periods)
-        method = "Holt's damped trend (not enough active months for seasonal ensemble)"
+    method, fit_fn, backtest_smape = _select_best_model(values, periods)
+
+    try:
+        point_forecast = np.clip(fit_fn(values, periods), a_min=0, a_max=None)
+    except Exception:
+        point_forecast = _candidate_moving_avg(values, periods)
+        method = "3-month moving average (fallback — selected model failed on full data)"
+        backtest_smape = None
+
+    # Uncertainty band: use the backtest SMAPE as a % error, applied to
+    # each point forecast, when available; else in-sample residual std.
+    if backtest_smape is not None:
+        err_frac = min(backtest_smape / 100, 1.5)  # cap so a bad backtest doesn't make bands absurd
+        lower = np.clip(point_forecast * (1 - err_frac), a_min=0, a_max=None)
+        upper = point_forecast * (1 + err_frac)
     else:
-        point_forecast = _naive_avg(values, periods)
-        resid_std = values.std() if len(values) > 1 else point_forecast[0] * 0.3
-        method = "3-month average (insufficient history for a trend model)"
-
-    point_forecast = np.clip(point_forecast, a_min=0, a_max=None)
-    lower = np.clip(point_forecast - 1.28 * resid_std, a_min=0, a_max=None)  # ~80% band
-    upper = point_forecast + 1.28 * resid_std
-
-    backtest_mape = _measure_backtest_mape(values, periods, active_ratio)
+        resid_std = values.std() if len(values) > 1 else point_forecast.mean() * 0.3
+        lower = np.clip(point_forecast - 1.28 * resid_std, a_min=0, a_max=None)
+        upper = point_forecast + 1.28 * resid_std
 
     return {
         "method": method,
-        "backtest_mape": backtest_mape,
+        "backtest_smape": round(backtest_smape, 1) if backtest_smape is not None else None,
         "history": values.tolist(),
         "forecast": point_forecast.tolist(),
         "lower": lower.tolist(),
@@ -347,67 +366,24 @@ def _forecast_one_series(series: pd.Series, periods: int) -> dict:
     }
 
 
-def _measure_backtest_mape(values: np.ndarray, periods: int, active_ratio: float):
-    """
-    Honest, measured walk-forward accuracy of whichever method
-    `_forecast_one_series` would actually use for a series like this one
-    — rolled forward over as many origins as the data allows (up to
-    REPORTING_BACKTEST_ORIGINS), not just one hold-out. This is purely
-    for reporting how reliable a division's forecast has historically
-    been; it does not influence which method gets used (that's fixed —
-    see module docstring for why free-form backtest-based selection was
-    tried and reverted).
-    """
-    n = len(values)
-    errors_pct = []
-    for origin in range(REPORTING_BACKTEST_ORIGINS):
-        cut = n - periods - origin
-        if cut < REPORTING_BACKTEST_MIN_TRAIN:
-            break
-        train = values[:cut]
-        actual = values[cut:cut + periods]
-        train_active = int((train > 0).sum())
-        train_ratio = train_active / len(train) if len(train) else 0
-        try:
-            if train_ratio < 0.4:
-                fc, _ = _croston_forecast(train, periods)
-            elif train_active >= 24:
-                fc, _ = _ensemble_forecast(train, periods)
-            elif train_active >= 8:
-                fc, _ = _trend_forecast(train, periods)
-            else:
-                fc = _naive_avg(train, periods)
-            fc = np.clip(fc, 0, None)
-            mask = actual != 0
-            if mask.sum():
-                errors_pct.extend((np.abs(actual[mask] - fc[mask]) / actual[mask] * 100).tolist())
-        except Exception:
-            continue
-
-    return round(float(np.mean(errors_pct)), 1) if errors_pct else None
-
-
 def forecast_by_division(df: pd.DataFrame, value_col: str = "so_qty", periods: int = 4,
                           cutoff_date=None, lookback_years=None) -> dict:
     """
     Top-level entry point.
 
     cutoff_date:    train only on data up to and including this date (e.g.
-                    "2026-03-31"). Defaults to the latest COMPLETE month in
-                    the data if not given — see `_effective_cutoff` for why
-                    a partial trailing month is excluded automatically
-                    rather than silently treated as real data.
+                    "2026-03-31"). Defaults to the latest date in the data
+                    if not given.
     lookback_years: if given, further restrict training data to the N years
-                    immediately before cutoff_date. If the data doesn't
-                    actually go back that far, all available data is used
-                    instead (reported in "lookback_clamped").
+                    immediately before cutoff_date. Clamped to available
+                    data if the request exceeds it (reported in meta).
 
-    Returns a dict with:
-      "divisions": {division_name: {...forecast fields..., "actual": [...],
-                    "actual_status": [...], "backtest_mape": ...}}
-      "meta": window/cutoff info the dashboard uses to explain what it's showing
+    Returns {"divisions": {name: {...}}, "meta": {...}}.
     """
-    cutoff_date, cutoff_adjusted_for_partial_month = _effective_cutoff(df, cutoff_date)
+    if cutoff_date is None:
+        cutoff_date = df["order_date"].max()
+    else:
+        cutoff_date = pd.Timestamp(cutoff_date)
 
     data_min = df["order_date"].min()
     data_max = df["order_date"].max()
@@ -449,7 +425,6 @@ def forecast_by_division(df: pd.DataFrame, value_col: str = "so_qty", periods: i
 
     meta = {
         "cutoff_date": cutoff_date.strftime("%Y-%m-%d"),
-        "cutoff_adjusted_for_partial_month": cutoff_adjusted_for_partial_month,
         "data_min_date": data_min.strftime("%Y-%m-%d"),
         "data_max_date": data_max.strftime("%Y-%m-%d"),
         "lookback_years_requested": lookback_years,

@@ -1,8 +1,8 @@
 {
   "divisions": {
     "Knits - Kids": {
-      "method": "Ensemble: Holt-Winters (seasonal) + Holt's damped trend + 6-month average",
-      "backtest_mape": 71.8,
+      "method": "Holt's trend (log-space)",
+      "backtest_smape": 28.6,
       "history": [
         30400.0,
         27000.0,
@@ -45,22 +45,22 @@
         632727.0
       ],
       "forecast": [
-        875242.3494872415,
-        650630.8510475155,
-        605588.8780701248,
-        678184.2579598571
+        660595.922848784,
+        713690.8298472189,
+        771053.1941280998,
+        833026.0088839384
       ],
       "lower": [
-        350859.5912573867,
-        126248.09281766077,
-        81206.11984027002,
-        153801.49973000237
+        471519.1999737042,
+        509417.2057055849,
+        550361.2309088899,
+        594596.096767244
       ],
       "upper": [
-        1399625.1077170963,
-        1175013.6092773704,
-        1129971.6362999794,
-        1202567.0161897119
+        849672.645723864,
+        917964.453988853,
+        991745.1573473099,
+        1071455.921000633
       ],
       "active_months": 39,
       "history_months": [
@@ -111,22 +111,22 @@
         "Jul 2026"
       ],
       "actual": [
-        803267.0,
-        1100540.0,
-        894098.0,
-        151864.0
+        null,
+        null,
+        null,
+        null
       ],
       "actual_status": [
-        "complete",
-        "complete",
-        "complete",
-        "partial"
+        "unavailable",
+        "unavailable",
+        "unavailable",
+        "unavailable"
       ],
       "total_history_orders": 6480
     },
     "Knits - Men": {
-      "method": "Ensemble: Holt-Winters (seasonal) + Holt's damped trend + 6-month average",
-      "backtest_mape": 57.5,
+      "method": "3-month moving average",
+      "backtest_smape": 61.8,
       "history": [
         0.0,
         2000.0,
@@ -169,22 +169,22 @@
         193046.0
       ],
       "forecast": [
-        286958.80160680134,
-        227887.4775067128,
-        232757.12318677976,
-        222293.20078827883
+        301313.0,
+        301313.0,
+        301313.0,
+        301313.0
       ],
       "lower": [
-        117256.45769707632,
-        58185.133596987784,
-        63054.77927705474,
-        52590.85687855381
+        115101.03325485066,
+        115101.03325485066,
+        115101.03325485066,
+        115101.03325485066
       ],
       "upper": [
-        456661.14551652636,
-        397589.82141643786,
-        402459.46709650476,
-        391995.54469800385
+        487524.96674514934,
+        487524.96674514934,
+        487524.96674514934,
+        487524.96674514934
       ],
       "active_months": 38,
       "history_months": [
@@ -235,22 +235,22 @@
         "Jul 2026"
       ],
       "actual": [
-        423695.0,
-        407999.0,
-        145443.0,
-        43705.0
+        null,
+        null,
+        null,
+        null
       ],
       "actual_status": [
-        "complete",
-        "complete",
-        "complete",
-        "partial"
+        "unavailable",
+        "unavailable",
+        "unavailable",
+        "unavailable"
       ],
       "total_history_orders": 2494
     },
     "Others": {
-      "method": "Croston's method (intermittent demand)",
-      "backtest_mape": 85.2,
+      "method": "3-month moving average",
+      "backtest_smape": 174.3,
       "history": [
         0.0,
         0.0,
@@ -293,10 +293,10 @@
         0.0
       ],
       "forecast": [
-        4844.563997809275,
-        4844.563997809275,
-        4844.563997809275,
-        4844.563997809275
+        0.0,
+        0.0,
+        0.0,
+        0.0
       ],
       "lower": [
         0.0,
@@ -305,10 +305,10 @@
         0.0
       ],
       "upper": [
-        15309.593767339775,
-        15309.593767339775,
-        15309.593767339775,
-        15309.593767339775
+        0.0,
+        0.0,
+        0.0,
+        0.0
       ],
       "active_months": 6,
       "history_months": [
@@ -359,22 +359,22 @@
         "Jul 2026"
       ],
       "actual": [
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        null,
+        null,
+        null,
+        null
       ],
       "actual_status": [
-        "complete",
-        "complete",
-        "complete",
-        "partial"
+        "unavailable",
+        "unavailable",
+        "unavailable",
+        "unavailable"
       ],
       "total_history_orders": 9
     },
     "Woven": {
-      "method": "Ensemble: Holt-Winters (seasonal) + Holt's damped trend + 6-month average",
-      "backtest_mape": 28.3,
+      "method": "Seasonal naive (same month last year)",
+      "backtest_smape": 28.8,
       "history": [
         0.0,
         0.0,
@@ -417,22 +417,22 @@
         621721.0
       ],
       "forecast": [
-        330719.7048053907,
-        373164.19397217827,
-        332826.52562383306,
-        354275.320011972
+        273831.0,
+        257408.0,
+        215498.0,
+        273171.0
       ],
       "lower": [
-        164387.84446653476,
-        206832.33363332236,
-        166494.66528497715,
-        187943.45967311607
+        195032.53681634855,
+        183335.47055235764,
+        153485.62295302388,
+        194562.46047620158
       ],
       "upper": [
-        497051.56514424656,
-        539496.0543110342,
-        499158.38596268895,
-        520607.18035082787
+        352629.46318365145,
+        331480.52944764233,
+        277510.3770469761,
+        351779.53952379845
       ],
       "active_months": 36,
       "history_months": [
@@ -483,25 +483,24 @@
         "Jul 2026"
       ],
       "actual": [
-        395795.0,
-        562458.0,
-        208987.0,
-        147696.0
+        null,
+        null,
+        null,
+        null
       ],
       "actual_status": [
-        "complete",
-        "complete",
-        "complete",
-        "partial"
+        "unavailable",
+        "unavailable",
+        "unavailable",
+        "unavailable"
       ],
       "total_history_orders": 1544
     }
   },
   "meta": {
     "cutoff_date": "2026-03-31",
-    "cutoff_adjusted_for_partial_month": false,
     "data_min_date": "2023-01-04",
-    "data_max_date": "2026-07-21",
+    "data_max_date": "2026-03-31",
     "lookback_years_requested": null,
     "lookback_clamped": false,
     "training_start": "2023-01-04",

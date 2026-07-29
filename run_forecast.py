@@ -5,14 +5,13 @@ Entry point for division-level sales forecasting.
 
 USAGE TODAY:
     python run_forecast.py
-    (reads data/sales_orders_v2.xlsx — the latest export from the team)
+    (reads data/sales_orders_final.xlsx — the official export, already
+    trimmed by the team to data through 31 Mar 2026)
 
-The model is trained only on data up to CUTOFF_DATE below, even though the
-source file has data beyond that — this lets the forecast for the months
-after the cutoff be checked against what actually happened (see
-forecast_model.get_actuals_for_months). Move CUTOFF_DATE forward (or set it
-to None to use all available data) once you want the "real" live forecast
-instead of this validation view.
+CUTOFF_DATE below is kept as an explicit safeguard even though the source
+file itself already stops at 31 Mar 2026 — if a future export ever
+includes more recent rows, training still won't silently pull them in
+without CUTOFF_DATE being deliberately moved forward first.
 
 USAGE ONCE THE .NET APIs ARE READY:
     Change the `source = FileDataSource(...)` line below to:
@@ -25,7 +24,7 @@ import os
 from src.data_source import FileDataSource
 from src.forecast_model import forecast_by_division
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "sales_orders_v2.xlsx")
+DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "sales_orders_final.xlsx")
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output", "forecast_results.json")
 
 CUTOFF_DATE = "2026-03-31"   # train only on data up to here
