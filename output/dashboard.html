@@ -65,8 +65,8 @@
   .content-wrap{position:relative; min-height:200px;}
   .content-overlay{
     position:absolute; inset:0; background:rgba(238,241,244,.85); z-index:5;
-    display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px;
-    border-radius:8px;
+    display:none; align-items:center; justify-content:flex-start; flex-direction:column; gap:12px;
+    border-radius:8px; padding-top:100px;
   }
   .content-overlay.active{display:flex;}
   .spinner{
@@ -218,29 +218,6 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <h2>Model Confidence — Backtested Accuracy</h2>
-          <div class="updated">How well each division's selected model predicted held-out historical months</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <table>
-          <thead>
-            <tr>
-              <th>Division</th>
-              <th>Model Used</th>
-              <th>Backtest Accuracy</th>
-              <th>Confidence</th>
-            </tr>
-          </thead>
-          <tbody id="validationTableBody"></tbody>
-        </table>
-      </div>
-      <div class="validation-note" id="validationNote">Each model is chosen by testing it against real held-out months from the training history — not future data — and picking whichever predicted best. Accuracy shown is the average error (SMAPE) from that test.</div>
-    </div>
-
     <div class="card chart-card">
       <div class="card-head">
         <div>
@@ -343,13 +320,6 @@ function renderLookbackButtons(){
   });
 }
 
-function confidenceBadge(smape){
-  if (smape === null || smape === undefined) return { label: "Not backtested", cls: "neutral" };
-  if (smape < 20) return { label: `High (±${smape.toFixed(0)}%)`, cls: "good" };
-  if (smape < 40) return { label: `Moderate (±${smape.toFixed(0)}%)`, cls: "mid" };
-  return { label: `Low (±${smape.toFixed(0)}%)`, cls: "poor" };
-}
-
 function render(payload){
   const DATA = payload.divisions;
   const meta = payload.meta;
@@ -432,25 +402,6 @@ function render(payload){
       <div class="rangelabel"><span>${fmt(lo)}</span><span>${fmt(hi)}</span></div>
     `;
     confList.appendChild(el);
-  });
-
-  // ---------- Model Confidence (backtest accuracy) table ----------
-  const valBody = document.getElementById("validationTableBody");
-  valBody.innerHTML = "";
-  DIVISIONS.forEach(div=>{
-    const r = DATA[div];
-    const conf = confidenceBadge(r.backtest_smape);
-    const smapeText = r.backtest_smape === null || r.backtest_smape === undefined
-      ? "Not enough history to backtest"
-      : `±${r.backtest_smape.toFixed(1)}% average error`;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${div}</strong></td>
-      <td>${r.method}</td>
-      <td>${smapeText}</td>
-      <td><span class="badge ${conf.cls}">${conf.label}</span></td>
-    `;
-    valBody.appendChild(tr);
   });
 
   // ---------- Chart ----------
