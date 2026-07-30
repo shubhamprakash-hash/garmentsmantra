@@ -120,6 +120,17 @@
   .badge.poor{background:var(--red-bg); color:var(--red-text);}
   .badge.neutral{background:#e7ecf0; color:var(--muted);}
   .cell-sub{display:block; font-size:11.5px; font-weight:500; color:var(--muted); margin-top:2px;}
+  .method-select{
+    border:1px solid var(--border); background:#fff; border-radius:8px; padding:7px 10px;
+    font-size:13.5px; color:var(--text); cursor:pointer; min-width:280px;
+  }
+  .smape-pill{
+    display:inline-block; padding:3px 9px; border-radius:10px; font-size:12.5px; font-weight:600;
+  }
+  .smape-pill.good{background:#e3f3e6; color:#2c7a3d;}
+  .smape-pill.ok{background:#fdf0d5; color:#a9701a;}
+  .smape-pill.bad{background:#fbe4e4; color:#a33636;}
+  .smape-pill.na{background:#e7ecf0; color:var(--muted);}
 
   .conf-item{padding:12px 18px; border-bottom:1px solid var(--border);}
   .conf-item:last-child{border-bottom:none;}
@@ -166,6 +177,10 @@
       <span class="ctl-label">Training Window:</span>
       <div class="lookback-btns" id="lookbackBtns"></div>
     </div>
+    <div class="label-group">
+      <span class="ctl-label">Forecasting Method:</span>
+      <select class="method-select" id="methodSelect"></select>
+    </div>
     <div class="meta-line" id="metaLine"></div>
   </div>
 
@@ -205,7 +220,7 @@
             <tbody id="forecastTableBody"></tbody>
           </table>
         </div>
-        <div class="method-note">Forecast is based on historical order volume. Divisions with fewer than 12 months of consistent order activity are flagged as Limited Data; divisions that only order occasionally (not every month) are flagged as Sporadic, with the date of their last real order shown.</div>
+        <div class="method-note">Forecast is based on historical order volume. Divisions with fewer than 12 months of consistent order activity are flagged as Limited Data; divisions that only order occasionally (not every month) are flagged as Sporadic, with the date of their last real order shown. Use the "Forecasting Method" dropdown above to compare any individual method's forecast and backtest accuracy (SMAPE, lower is better) against the auto-selected default.</div>
       </div>
 
       <div class="card">
@@ -254,6 +269,8 @@ const LOOKBACK_OPTIONS = [
 ];
 
 let currentLookback = null;
+let currentMethod = "__auto__";
+let lastPayload = null;
 let currentChart = null;
 let hasLoadedOnce = false;
 
@@ -288,6 +305,7 @@ function loadAndRender(lookbackYears){
       document.getElementById("fullPageLoading").style.display = "none";
       document.getElementById("contentWrap").style.display = "block";
       try {
+        lastPayload = payload;
         render(payload);
         hasLoadedOnce = true;
       } catch (renderErr) {
@@ -321,11 +339,82 @@ function renderLookbackButtons(){
   });
 }
 
+function renderMethodDropdown(payload){
+  const DATA = payload.divisions;
+  const DIVISIONS = Object.keys(DATA);
+
+  // Union of every method name that was computable for ANY division
+  // (a given division may be missing a method if it doesn't have enough
+  // history for it — e.g. a series shorter than 24 months has no
+  // Holt-Winters entry), in ranked order (best average backtest first).
+  const scoreSum = {}, scoreCount = {};
+  DIVISIONS.forEach(div=>{
+    (DATA[div].all_methods || []).forEach(m=>{
+      if (m.backtest_smape != null){
+        scoreSum[m.name] = (scoreSum[m.name]||0) + m.backtest_smape;
+        scoreCount[m.name] = (scoreCount[m.name]||0) + 1;
+      } else if (!(m.name in scoreSum)) {
+        scoreSum[m.name] = Infinity; scoreCount[m.name] = 1;
+      }
+    });
+  });
+  const methodNames = Object.keys(scoreSum).sort((a,b)=>
+    (scoreSum[a]/scoreCount[a]) - (scoreSum[b]/scoreCount[b]));
+
+  const select = document.getElementById("methodSelect");
+  const prevValue = currentMethod;
+  select.innerHTML = "";
+  const autoOpt = document.createElement("option");
+  autoOpt.value = "__auto__";
+  autoOpt.textContent = "Auto (best per division, recommended)";
+  select.appendChild(autoOpt);
+  methodNames.forEach(name=>{
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+
+  // Keep the user's selection across a lookback-window change if that
+  // method still exists for the new window; otherwise fall back to Auto.
+  currentMethod = methodNames.includes(prevValue) || prevValue === "__auto__" ? prevValue : "__auto__";
+  select.value = currentMethod;
+  select.onchange = () => {
+    currentMethod = select.value;
+    if (lastPayload) render(lastPayload);
+  };
+}
+
+// Resolves which forecast/lower/upper/backtest_smape to show for one
+// division given the currently selected method ("__auto__" = the
+// model's own backtested pick for that division, which is what all the
+// previous badge/zero-guard logic below is written around).
+function resolveMethod(r, methodName){
+  if (methodName === "__auto__") {
+    return { name: r.method, forecast: r.forecast, lower: r.lower, upper: r.upper,
+             backtest_smape: r.backtest_smape, available: true, isAuto: true };
+  }
+  const m = (r.all_methods || []).find(x => x.name === methodName);
+  if (!m) return { name: methodName, available: false, isAuto: false };
+  return { name: m.name, forecast: m.forecast, lower: m.lower, upper: m.upper,
+           backtest_smape: m.backtest_smape, available: true, isAuto: false };
+}
+
+function smapeBadge(smape){
+  if (smape == null) return `<span class="smape-pill na">N/A</span>`;
+  const cls = smape < 40 ? "good" : smape < 80 ? "ok" : "bad";
+  return `<span class="smape-pill ${cls}">${smape.toFixed(1)}%</span>`;
+}
+
 function render(payload){
   const DATA = payload.divisions;
   const meta = payload.meta;
   const DIVISIONS = Object.keys(DATA);
   const periods = meta.forecast_periods;
+
+  renderMethodDropdown(payload);
+  const RESOLVED = {};
+  DIVISIONS.forEach(div => { RESOLVED[div] = resolveMethod(DATA[div], currentMethod); });
 
   // ---------- Control bar meta line ----------
   const metaLine = document.getElementById("metaLine");
@@ -353,26 +442,46 @@ function render(payload){
   });
 
   // ---------- Forecast table ----------
+  const tableSubtitle = document.getElementById("tableSubtitle");
+  tableSubtitle.textContent = (currentMethod === "__auto__")
+    ? "Model selected per division by backtested accuracy"
+    : `Showing: ${currentMethod} (applied to every division)`;
+
   const forecastMonths = DATA[DIVISIONS[0]].forecast_months;
   const headRow = document.getElementById("forecastHeadRow");
   headRow.innerHTML = `<th>Division</th><th>Last 3-Mo Avg</th>` +
-    forecastMonths.map(m => `<th>${m}</th>`).join("") + `<th>Trend</th>`;
+    forecastMonths.map(m => `<th>${m}</th>`).join("") + `<th>Backtest SMAPE</th><th>Trend</th>`;
 
   const tbody = document.getElementById("forecastTableBody");
   tbody.innerHTML = "";
   DIVISIONS.forEach(div=>{
     const r = DATA[div];
+    const res = RESOLVED[div];
     const last3 = r.history.slice(-3);
     const avg3 = last3.reduce((a,b)=>a+b,0)/last3.length;
     const thin = r.active_months < 12;
-    const growing = r.forecast[r.forecast.length-1] > r.forecast[0];
+
+    if (!res.available) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${div}</strong></td>
+        <td class="num">${fmt(avg3)}</td>
+        ${forecastMonths.map(()=>`<td class="num">—</td>`).join("")}
+        <td>${smapeBadge(null)}</td>
+        <td><span class="badge thin">Not enough history for this method</span></td>
+      `;
+      tbody.appendChild(tr);
+      return;
+    }
+
+    const growing = res.forecast[res.forecast.length-1] > res.forecast[0];
 
     let badge;
-    if (r.is_sparse) {
+    if (res.isAuto && r.is_sparse) {
       badge = r.last_active_month
         ? `<span class="badge thin">Sporadic — last order ${r.last_active_month}</span>`
         : `<span class="badge thin">Sporadic — no orders yet</span>`;
-    } else if (thin) badge = `<span class="badge thin">Limited Data</span>`;
+    } else if (res.isAuto && thin) badge = `<span class="badge thin">Limited Data</span>`;
     else if (growing) badge = `<span class="badge up">&#8599; Growing</span>`;
     else badge = `<span class="badge down">&#8600; Declining</span>`;
 
@@ -384,13 +493,14 @@ function render(payload){
       ? `${fmt(avg3)}<span class="cell-sub">last order ${r.last_active_month}: ${fmt(r.last_active_value)}</span>`
       : fmt(avg3);
 
-    const forecastCells = r.forecast.map(v => `<td class="num">${fmt(v)}</td>`).join("");
+    const forecastCells = res.forecast.map(v => `<td class="num">${fmt(v)}</td>`).join("");
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${div}</strong></td>
       <td class="num">${avg3Cell}</td>
       ${forecastCells}
+      <td>${smapeBadge(res.backtest_smape)}</td>
       <td>${badge}</td>
     `;
     tbody.appendChild(tr);
@@ -398,13 +508,15 @@ function render(payload){
 
   // ---------- Confidence panel ----------
   document.getElementById("confSubtitle").textContent =
-    `Next month (${forecastMonths[0]}), ~80% band`;
+    `Next month (${forecastMonths[0]}), ~80% band` +
+    (currentMethod === "__auto__" ? "" : ` — ${currentMethod}`);
   const confList = document.getElementById("confidenceList");
   confList.innerHTML = "";
-  const globalMax = Math.max(...DIVISIONS.map(d=>DATA[d].upper[0]));
-  DIVISIONS.forEach(div=>{
-    const r = DATA[div];
-    const lo = r.lower[0], hi = r.upper[0], pt = r.forecast[0];
+  const availableDivs = DIVISIONS.filter(d => RESOLVED[d].available);
+  const globalMax = Math.max(...availableDivs.map(d=>RESOLVED[d].upper[0]), 1);
+  availableDivs.forEach(div=>{
+    const res = RESOLVED[div];
+    const lo = res.lower[0], hi = res.upper[0], pt = res.forecast[0];
     const leftPct = (lo/globalMax)*100;
     const widthPct = ((hi-lo)/globalMax)*100;
     const el = document.createElement("div");
@@ -428,8 +540,9 @@ function render(payload){
 
   function seriesFor(div, part){
     const r = DATA[div];
+    const res = RESOLVED[div];
     const months = part === "history" ? r.history_months : r.forecast_months;
-    const values = part === "history" ? r.history : r.forecast;
+    const values = part === "history" ? r.history : (res.available ? res.forecast : r.forecast_months.map(()=>null));
     const map = {};
     months.forEach((m,i)=> map[m]=values[i]);
 
@@ -461,7 +574,7 @@ function render(payload){
 
   // ---------- Chart (built defensively — a blocked/missing Chart.js shouldn't break the rest) ----------
   if (currentChart) { currentChart.destroy(); currentChart = null; }
-  const chartCard = document.getElementById("trendChart").closest(".chart-card");
+  const chartCard = document.querySelector(".chart-card");
   const cardBody = chartCard.querySelector(".card-body");
   cardBody.innerHTML = '<canvas id="trendChart" height="90"></canvas>';
 

@@ -324,6 +324,43 @@ def _select_best_model(values: np.ndarray, periods: int) -> tuple[str, callable,
     return "3-month moving average (insufficient history to backtest)", _candidate_moving_avg, None
 
 
+def _forecast_with_method(values: np.ndarray, name: str, fit_fn, min_hist: int,
+                           periods: int) -> dict | None:
+    """
+    Fits ONE specific candidate on the full series (regardless of the
+    sparse/dense eligibility rule in _select_best_model) and backtests it,
+    so the dashboard's method-comparison dropdown can show what every
+    method — not just the auto-selected winner — would have forecast.
+    Returns None if there isn't enough history for this method at all.
+    """
+    if len(values) < min_hist:
+        return None
+    try:
+        point_forecast = np.clip(fit_fn(values, periods), a_min=0, a_max=None)
+        if len(point_forecast) != periods or np.any(~np.isfinite(point_forecast)):
+            return None
+    except Exception:
+        return None
+
+    backtest_smape = _backtest_candidate(values, fit_fn, periods, min_hist)
+    if backtest_smape is not None:
+        err_frac = min(backtest_smape / 100, 1.5)
+        lower = np.clip(point_forecast * (1 - err_frac), a_min=0, a_max=None)
+        upper = point_forecast * (1 + err_frac)
+    else:
+        resid_std = values.std() if len(values) > 1 else point_forecast.mean() * 0.3
+        lower = np.clip(point_forecast - 1.28 * resid_std, a_min=0, a_max=None)
+        upper = point_forecast + 1.28 * resid_std
+
+    return {
+        "name": name,
+        "backtest_smape": round(backtest_smape, 1) if backtest_smape is not None else None,
+        "forecast": point_forecast.tolist(),
+        "lower": lower.tolist(),
+        "upper": upper.tolist(),
+    }
+
+
 def _forecast_one_series(series: pd.Series, periods: int) -> dict:
     """
     Selects the best-backtested model for this division's series, fits it
@@ -372,6 +409,15 @@ def _forecast_one_series(series: pd.Series, periods: int) -> dict:
         lower = np.clip(point_forecast - 1.28 * resid_std, a_min=0, a_max=None)
         upper = point_forecast + 1.28 * resid_std
 
+    all_methods = []
+    for cand_name, cand_fn, cand_min_hist in _CANDIDATES:
+        result_for_method = _forecast_with_method(values, cand_name, cand_fn, cand_min_hist, periods)
+        if result_for_method is not None:
+            all_methods.append(result_for_method)
+    # Show the more accurate (lower SMAPE) methods first; methods that
+    # couldn't be backtested (None) are listed last rather than first.
+    all_methods.sort(key=lambda m: (m["backtest_smape"] is None, m["backtest_smape"] or 0))
+
     return {
         "method": method,
         "backtest_smape": round(backtest_smape, 1) if backtest_smape is not None else None,
@@ -380,6 +426,7 @@ def _forecast_one_series(series: pd.Series, periods: int) -> dict:
         "lower": lower.tolist(),
         "upper": upper.tolist(),
         "active_months": n_active,
+        "all_methods": all_methods,
     }
 
 
