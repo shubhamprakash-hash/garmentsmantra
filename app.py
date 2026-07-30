@@ -107,9 +107,23 @@ def _compute(lookback_years: Optional[float] = None):
     return output
 
 
+# Every window the dashboard's Training Window buttons can request. Kept in
+# one place so the startup warm-up (below) and the dashboard's own options
+# can't drift apart.
+LOOKBACK_WINDOWS = [None, 2, 3, 5]
+
+
 @app.on_event("startup")
 def _on_startup():
-    _compute(None)  # pre-warm the default (all-history) view
+    # Pre-warm EVERY lookback window, not just "All Available" (None). Each
+    # window used to only be computed the first time someone clicked that
+    # button on the dashboard — which meant that request sat blocked for
+    # however long model-fitting took (worse on Render's free-tier CPU than
+    # in local testing), and felt like the dashboard was stuck/not loading.
+    # Precomputing all of them here means every click is served straight
+    # from _forecast_cache with no live computation at all.
+    for w in LOOKBACK_WINDOWS:
+        _compute(w)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])
@@ -180,7 +194,7 @@ def refresh_forecast():
         os.remove(cache_path)
 
     _df_cache["df"] = None
-    windows_to_refresh = list(_forecast_cache.keys()) or [None]
+    windows_to_refresh = list(_forecast_cache.keys()) or LOOKBACK_WINDOWS
     _forecast_cache.clear()
     for w in windows_to_refresh:
         _compute(w)

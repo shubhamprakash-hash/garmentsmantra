@@ -279,86 +279,75 @@ def _backtest_candidate(values: np.ndarray, fit_fn, periods: int, min_history: i
     return float(np.mean(scores)) if scores else None
 
 
-def _select_best_model(values: np.ndarray, periods: int) -> tuple[str, callable, float | None]:
+def _compute_all_candidates(values: np.ndarray, periods: int) -> list[dict]:
     """
-    Backtests eligible candidates and returns (name, fit_fn, backtest_smape)
-    for whichever scored lowest. Candidates are first filtered by whether
-    they're structurally appropriate for how sparse the series is — this
-    matters because a flat-rate method (Croston's) can spuriously "win" a
-    small backtest sample purely by luck even on a dense, regular series,
-    since it never overshoots the way a trend/seasonal model can. Croston's
-    is only offered as a candidate for genuinely intermittent series
-    (active_ratio < 0.4) — it's not statistically meant for anything else,
-    and letting it compete freely risks picking a structurally-wrong model
-    just because it got lucky on 1-2 backtest folds.
-
-    If nothing could be backtested (very short series), falls back to the
-    simplest structurally-appropriate method without a backtest score.
+    Fits and backtests EVERY candidate in _CANDIDATES exactly once. This is
+    the single expensive pass — both the "auto" model selection and the
+    dashboard's full method-comparison dropdown are built from this same
+    list afterwards, instead of each independently re-fitting/backtesting
+    (which used to double the model-fitting cost per division and was the
+    main reason switching the dashboard's lookback window felt slow).
+    Each entry: {name, fit_fn, min_hist, forecast (np.ndarray), backtest_smape}.
+    Candidates with too little history, or that fail to fit on the full
+    series, are omitted.
     """
-    n_active = int((values > 0).sum())
-    active_ratio = n_active / len(values) if len(values) else 0
-    is_sparse = active_ratio < 0.4
-
-    if is_sparse:
-        eligible = [c for c in _CANDIDATES if c[1] in (_candidate_croston, _candidate_moving_avg)]
-    else:
-        eligible = [c for c in _CANDIDATES if c[1] is not _candidate_croston]
-
-    scored = []
-    for name, fit_fn, min_hist in eligible:
+    candidates = []
+    for name, fit_fn, min_hist in _CANDIDATES:
         if len(values) < min_hist:
             continue
-        score = _backtest_candidate(values, fit_fn, periods, min_hist)
-        if score is not None:
-            scored.append((score, name, fit_fn))
-
-    if scored:
-        scored.sort(key=lambda t: t[0])
-        best_score, best_name, best_fn = scored[0]
-        return best_name, best_fn, best_score
-
-    # Nothing could be backtested (too little history for even 1 fold) —
-    # fall back to the structurally-appropriate simple method.
-    if is_sparse:
-        return "Croston's method (intermittent demand, insufficient history to backtest)", _candidate_croston, None
-    return "3-month moving average (insufficient history to backtest)", _candidate_moving_avg, None
+        try:
+            point_forecast = np.clip(fit_fn(values, periods), a_min=0, a_max=None)
+            if len(point_forecast) != periods or np.any(~np.isfinite(point_forecast)):
+                continue
+        except Exception:
+            continue
+        backtest_smape = _backtest_candidate(values, fit_fn, periods, min_hist)
+        candidates.append({
+            "name": name, "fit_fn": fit_fn, "min_hist": min_hist,
+            "forecast": point_forecast, "backtest_smape": backtest_smape,
+        })
+    return candidates
 
 
-def _forecast_with_method(values: np.ndarray, name: str, fit_fn, min_hist: int,
-                           periods: int) -> dict | None:
-    """
-    Fits ONE specific candidate on the full series (regardless of the
-    sparse/dense eligibility rule in _select_best_model) and backtests it,
-    so the dashboard's method-comparison dropdown can show what every
-    method — not just the auto-selected winner — would have forecast.
-    Returns None if there isn't enough history for this method at all.
-    """
-    if len(values) < min_hist:
-        return None
-    try:
-        point_forecast = np.clip(fit_fn(values, periods), a_min=0, a_max=None)
-        if len(point_forecast) != periods or np.any(~np.isfinite(point_forecast)):
-            return None
-    except Exception:
-        return None
-
-    backtest_smape = _backtest_candidate(values, fit_fn, periods, min_hist)
+def _band_for(point_forecast: np.ndarray, backtest_smape: float | None, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Confidence band from backtest SMAPE when available, else in-sample residual spread."""
     if backtest_smape is not None:
-        err_frac = min(backtest_smape / 100, 1.5)
+        err_frac = min(backtest_smape / 100, 1.5)  # cap so a bad backtest doesn't make bands absurd
         lower = np.clip(point_forecast * (1 - err_frac), a_min=0, a_max=None)
         upper = point_forecast * (1 + err_frac)
     else:
         resid_std = values.std() if len(values) > 1 else point_forecast.mean() * 0.3
         lower = np.clip(point_forecast - 1.28 * resid_std, a_min=0, a_max=None)
         upper = point_forecast + 1.28 * resid_std
+    return lower, upper
 
-    return {
-        "name": name,
-        "backtest_smape": round(backtest_smape, 1) if backtest_smape is not None else None,
-        "forecast": point_forecast.tolist(),
-        "lower": lower.tolist(),
-        "upper": upper.tolist(),
-    }
+
+def _select_best_model(values: np.ndarray, candidates: list[dict]) -> dict | None:
+    """
+    Picks whichever already-computed candidate scored lowest backtest SMAPE,
+    restricted to the subset that's structurally appropriate for how sparse
+    the series is — this matters because a flat-rate method (Croston's) can
+    spuriously "win" a small backtest sample purely by luck even on a dense,
+    regular series, since it never overshoots the way a trend/seasonal model
+    can. Croston's is only eligible to WIN for genuinely intermittent series
+    (active_ratio < 0.4) — it's not statistically meant for anything else —
+    though it's still shown, unfiltered, in the full method-comparison list.
+    Returns None if nothing could be backtested (falls back to a simple
+    structurally-appropriate default in the caller).
+    """
+    n_active = int((values > 0).sum())
+    active_ratio = n_active / len(values) if len(values) else 0
+    is_sparse = active_ratio < 0.4
+
+    if is_sparse:
+        eligible = [c for c in candidates if c["fit_fn"] in (_candidate_croston, _candidate_moving_avg)]
+    else:
+        eligible = [c for c in candidates if c["fit_fn"] is not _candidate_croston]
+
+    scored = [c for c in eligible if c["backtest_smape"] is not None]
+    if scored:
+        return min(scored, key=lambda c: c["backtest_smape"])
+    return None
 
 
 def _forecast_one_series(series: pd.Series, periods: int) -> dict:
@@ -371,14 +360,27 @@ def _forecast_one_series(series: pd.Series, periods: int) -> dict:
     """
     values = series.values.astype(float)
     n_active = int((values > 0).sum())
+    active_ratio = n_active / len(values) if len(values) else 0
+    is_sparse = active_ratio < 0.4
 
-    method, fit_fn, backtest_smape = _select_best_model(values, periods)
+    candidates = _compute_all_candidates(values, periods)
+    best = _select_best_model(values, candidates)
 
-    try:
-        point_forecast = np.clip(fit_fn(values, periods), a_min=0, a_max=None)
-    except Exception:
-        point_forecast = _candidate_moving_avg(values, periods)
-        method = "3-month moving average (fallback — selected model failed on full data)"
+    if best is not None:
+        method, fit_fn = best["name"], best["fit_fn"]
+        point_forecast, backtest_smape = best["forecast"], best["backtest_smape"]
+    else:
+        # Nothing could be backtested (very short series) — fall back to
+        # the structurally-appropriate simple method.
+        if is_sparse:
+            method, fit_fn = "Croston's method (intermittent demand, insufficient history to backtest)", _candidate_croston
+        else:
+            method, fit_fn = "3-month moving average (insufficient history to backtest)", _candidate_moving_avg
+        try:
+            point_forecast = np.clip(fit_fn(values, periods), a_min=0, a_max=None)
+        except Exception:
+            point_forecast = _candidate_moving_avg(values, periods)
+            method = "3-month moving average (fallback — selected model failed on full data)"
         backtest_smape = None
 
     # Guard against a flat all-zero forecast for a division that HAS had
@@ -388,9 +390,9 @@ def _forecast_one_series(series: pd.Series, periods: int) -> dict:
     # score) but isn't useful for planning. Croston's method instead uses
     # the whole order history and the gaps between orders, so it still
     # produces a non-zero rate for a division that orders sporadically.
-    if (n_active > 0 and not np.any(point_forecast > 0)
-            and fit_fn is not _candidate_croston):
-        croston_forecast = _candidate_croston(values, periods)
+    if n_active > 0 and not np.any(point_forecast > 0) and fit_fn is not _candidate_croston:
+        croston_entry = next((c for c in candidates if c["fit_fn"] is _candidate_croston), None)
+        croston_forecast = croston_entry["forecast"] if croston_entry is not None else _candidate_croston(values, periods)
         if np.any(croston_forecast > 0):
             point_forecast = croston_forecast
             method = (f"Croston's method (intermittent demand — {method} "
@@ -398,22 +400,18 @@ def _forecast_one_series(series: pd.Series, periods: int) -> dict:
                       "planning, so an intermittent-demand estimate is used instead)")
             backtest_smape = None
 
-    # Uncertainty band: use the backtest SMAPE as a % error, applied to
-    # each point forecast, when available; else in-sample residual std.
-    if backtest_smape is not None:
-        err_frac = min(backtest_smape / 100, 1.5)  # cap so a bad backtest doesn't make bands absurd
-        lower = np.clip(point_forecast * (1 - err_frac), a_min=0, a_max=None)
-        upper = point_forecast * (1 + err_frac)
-    else:
-        resid_std = values.std() if len(values) > 1 else point_forecast.mean() * 0.3
-        lower = np.clip(point_forecast - 1.28 * resid_std, a_min=0, a_max=None)
-        upper = point_forecast + 1.28 * resid_std
+    lower, upper = _band_for(point_forecast, backtest_smape, values)
 
     all_methods = []
-    for cand_name, cand_fn, cand_min_hist in _CANDIDATES:
-        result_for_method = _forecast_with_method(values, cand_name, cand_fn, cand_min_hist, periods)
-        if result_for_method is not None:
-            all_methods.append(result_for_method)
+    for c in candidates:
+        m_lower, m_upper = _band_for(c["forecast"], c["backtest_smape"], values)
+        all_methods.append({
+            "name": c["name"],
+            "backtest_smape": round(c["backtest_smape"], 1) if c["backtest_smape"] is not None else None,
+            "forecast": c["forecast"].tolist(),
+            "lower": m_lower.tolist(),
+            "upper": m_upper.tolist(),
+        })
     # Show the more accurate (lower SMAPE) methods first; methods that
     # couldn't be backtested (None) are listed last rather than first.
     all_methods.sort(key=lambda m: (m["backtest_smape"] is None, m["backtest_smape"] or 0))
