@@ -16,7 +16,7 @@ without CUTOFF_DATE being deliberately moved forward first.
 USAGE ONCE THE .NET APIs ARE READY:
     Change the `source = FileDataSource(...)` line below to:
         source = APIDataSource(base_url="https://<erp-host>", api_key="<key>")
-    Nothing else in this file, or in forecast_model.py, needs to change.
+    Nothing more else in this file, or in forecast_model.py, needs to change.
 """
 
 import json
