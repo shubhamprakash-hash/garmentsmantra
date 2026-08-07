@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Sales Forecast Dashboard — Garments Mantra</title>
-<script src="/vendor/chart.umd.js"></script>
+<script src="https://garmentsmantra.onrender.com/vendor/chart.umd.js"></script>
 <style>
   :root{
     --teal:#4a7f97;
@@ -161,7 +161,7 @@
 
 <header>
   <div class="brand">
-    <div class="logo-box"><img src="/assets/logo.png" alt="Garments Mantra" /></div>
+    <div class="logo-box"><img src="https://garmentsmantra.onrender.com/assets/logo.png" alt="Garments Mantra" /></div>
     <span class="sep">|</span>
     <span class="sub">Sales Forecast Dashboard</span>
   </div>
@@ -279,8 +279,16 @@ function fmt(n){
   return Math.round(n).toLocaleString("en-IN");
 }
 
+// This page is hosted on garmentsmantra.com; the forecasting API and model
+// run on Render (garmentsmantra.com's server doesn't support Python). All
+// API calls below go to this absolute URL instead of a relative path.
+// If the Render service URL ever changes, this is the only line to edit.
+const RENDER_BASE_URL = "https://garmentsmantra.onrender.com";
+
 function apiUrl(lookbackYears){
-  return lookbackYears == null ? "/forecast/v1/all" : `/forecast/v1/all?lookback_years=${lookbackYears}`;
+  return lookbackYears == null
+    ? `${RENDER_BASE_URL}/forecast/v1/all`
+    : `${RENDER_BASE_URL}/forecast/v1/all?lookback_years=${lookbackYears}`;
 }
 
 function setButtonsDisabled(disabled){

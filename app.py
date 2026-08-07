@@ -97,13 +97,15 @@ app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
 # Serves the Garments Mantra logo and any other dashboard branding assets.
 app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
-# Allows the dashboard (or any other origin, incl. the ERP front end) to
-# call this API directly from a browser. Tighten allow_origins to the
-# actual ERP domain before this goes anywhere near production.
+# The dashboard is hosted on garmentsmantra.com (a different origin than
+# this Render-hosted API, since garmentsmantra.com's server can't run
+# Python) and calls this API directly from the browser — so its origin
+# needs to be explicitly allowed. www. included since browsers treat it as
+# a different origin from the bare domain.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=["https://garmentsmantra.com", "https://www.garmentsmantra.com"],
+    allow_methods=["GET"],
     allow_headers=["*"],
 )
 
