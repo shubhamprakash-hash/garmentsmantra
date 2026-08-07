@@ -238,7 +238,7 @@
       <div class="card-head">
         <div>
           <h2>Monthly Order Volume — History &amp; Forecast</h2>
-          <div class="updated">Solid = actual orders &nbsp;·&nbsp; Dashed = forecast</div>
+          <div class="updated">Solid = actual orders &nbsp;·&nbsp; Dashed = forecast &nbsp;·&nbsp; &#9670; = live orders so far this month</div>
         </div>
       </div>
       <div class="chip-row" id="chipRow"></div>
@@ -493,7 +493,14 @@ function render(payload){
       ? `${fmt(avg3)}<span class="cell-sub">last order ${r.last_active_month}: ${fmt(r.last_active_value)}</span>`
       : fmt(avg3);
 
-    const forecastCells = res.forecast.map(v => `<td class="num">${fmt(v)}</td>`).join("");
+    const forecastCells = res.forecast.map((v,i) => {
+      const status = r.actual_status && r.actual_status[i];
+      const liveVal = r.actual ? r.actual[i] : null;
+      if (status === "partial" && liveVal !== null && liveVal !== undefined) {
+        return `<td class="num">${fmt(v)}<span class="cell-sub">live so far: ${fmt(liveVal)}</span></td>`;
+      }
+      return `<td class="num">${fmt(v)}</td>`;
+    }).join("");
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -570,6 +577,27 @@ function render(payload){
       borderDash:[6,4], spanGaps:true, tension:.25, pointRadius:3, borderWidth:2,
       divisionKey:div, part:"forecast"
     });
+
+    // Live-so-far overlay: if the current (first) forecast month has a
+    // "partial" actual — meaning the live API already has some orders
+    // punched for it this month — plot that as a standalone marker on top
+    // of the forecast line, so it's visible without waiting for the month
+    // to close. Only the first forecast month can ever be "partial" (later
+    // months are always fully in the future).
+    const r0 = DATA[div];
+    if (r0.actual_status && r0.actual_status[0] === "partial" &&
+        r0.actual[0] !== null && r0.actual[0] !== undefined) {
+      const liveMap = {};
+      liveMap[r0.forecast_months[0]] = r0.actual[0];
+      datasets.push({
+        label: div + " (live so far)",
+        data: allMonths.map(m => (m in liveMap) ? liveMap[m] : null),
+        borderColor: color, backgroundColor: "#fff",
+        pointStyle:"rectRot", pointRadius:7, pointBorderWidth:2.5, pointBorderColor: color,
+        showLine:false, spanGaps:false,
+        divisionKey:div, part:"live"
+      });
+    }
   });
 
   // ---------- Chart (built defensively — a blocked/missing Chart.js shouldn't break the rest) ----------

@@ -10,6 +10,10 @@ Run this once, standalone (only needs `requests`), to confirm:
 
 USAGE:
     pip install requests
+    # set env vars first (or it falls back to the old staging values below):
+    #   $env:GM_API_BASE_URL = "https://api.garmentsmantra.com"
+    #   $env:GM_API_SECURITY_CODE = "..."
+    #   $env:GM_API_COMPANY_CODE = "..."
     python test_api_connection.py
 
 It prints which auth style worked, the HTTP status, and (on success) the
@@ -17,12 +21,22 @@ keys of the first record plus a total record count. Paste that output
 back and I'll tune FIELD_ALIASES / GM_API_AUTH_LOCATION to match exactly.
 """
 
+import os
 import requests
 
-BASE_URL = "https://gm-api-staging.goldenbuzz.in"
-ENDPOINT = "/api/GetForecastingOrderDetails"
-SECURITY_CODE = "BppYwgD6PYi62DHre7G4RA"
-COMPANY_CODE = "C004"
+BASE_URL = os.environ.get("GM_API_BASE_URL", "https://gm-api-staging.goldenbuzz.in")
+ENDPOINT = os.environ.get("GM_API_ENDPOINT", "/api/GetForecastingOrderDetails")
+SECURITY_CODE = os.environ.get("GM_API_SECURITY_CODE", "")
+COMPANY_CODE = os.environ.get("GM_API_COMPANY_CODE", "")
+
+if not SECURITY_CODE or not COMPANY_CODE:
+    raise SystemExit(
+        "GM_API_SECURITY_CODE and/or GM_API_COMPANY_CODE aren't set in this "
+        "terminal session. Set them first, e.g.:\n"
+        '  $env:GM_API_SECURITY_CODE = "..."\n'
+        '  $env:GM_API_COMPANY_CODE = "..."\n'
+        "then re-run this script."
+    )
 
 url = f"{BASE_URL}{ENDPOINT}"
 

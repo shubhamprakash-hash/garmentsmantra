@@ -447,6 +447,17 @@ def forecast_by_division(df: pd.DataFrame, value_col: str = "so_qty", periods: i
     else:
         cutoff_date = pd.Timestamp(cutoff_date)
 
+    # If cutoff_date falls mid-month (the normal case with live data pulled
+    # today — the current month only has a few days of orders so far), roll
+    # it back to the end of the PREVIOUS month. Without this, the partial
+    # current month gets treated as a complete "actual" month in training,
+    # and the forecast starts the month AFTER it — e.g. pulling data on
+    # Aug 5 would silently skip forecasting August at all and jump straight
+    # to September, just because 5 days of August data already existed.
+    month_end = cutoff_date + pd.offsets.MonthEnd(0)
+    if cutoff_date != month_end:
+        cutoff_date = cutoff_date.replace(day=1) - pd.Timedelta(days=1)
+
     data_min = df["order_date"].min()
     data_max = df["order_date"].max()
 
