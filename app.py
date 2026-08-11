@@ -97,14 +97,21 @@ app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
 # Serves the Garments Mantra logo and any other dashboard branding assets.
 app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
-# The dashboard is hosted on garmentsmantra.com (a different origin than
-# this Render-hosted API, since garmentsmantra.com's server can't run
-# Python) and calls this API directly from the browser — so its origin
-# needs to be explicitly allowed. www. included since browsers treat it as
-# a different origin from the bare domain.
+# The dashboard can end up hosted on any subdomain the .NET team spins up
+# (production, staging, per-branch previews, future ones nobody's thought
+# of yet) — rather than maintaining an exact-match list that needs a code
+# change every time a new URL appears, this regex allows ANY subdomain
+# under the company's own root domains:
+#   - garmentsmantrafarecasting.in
+#   - goldenbuzz.in
+#   - garmentsmantra.com
+# A genuinely open wildcard ("*", any site on the internet) was deliberately
+# NOT used here — /forecast/v1/all has no login/API key of its own, so an
+# open wildcard would let any website pull live sales data directly, not
+# just your team's own pages. This regex keeps it to your own domains only.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://garmentsmantra.com", "https://www.garmentsmantra.com"],
+    allow_origin_regex=r"^https://([a-zA-Z0-9-]+\.)*(garmentsmantrafarecasting\.in|goldenbuzz\.in|garmentsmantra\.com)$",
     allow_methods=["GET"],
     allow_headers=["*"],
 )
