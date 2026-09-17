@@ -54,6 +54,7 @@ WHAT TO HAND THE .NET TEAM:
 """
 
 import os
+import threading
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -152,17 +153,37 @@ def _compute(lookback_years: Optional[float] = None):
 LOOKBACK_WINDOWS = [None, 2, 3, 5]
 
 
+_compute_lock = threading.Lock()
+
+
+def _compute_locked(w):
+    # Guards against a background pre-warm and an incoming request racing
+    # to compute the same window at the same time (harmless but wasteful).
+    with _compute_lock:
+        if w not in _forecast_cache:
+            _compute(w)
+
+
+def _prewarm_all_windows():
+    for w in LOOKBACK_WINDOWS:
+        _compute_locked(w)
+
+
 @app.on_event("startup")
 def _on_startup():
-    # Pre-warm EVERY lookback window, not just "All Available" (None). Each
-    # window used to only be computed the first time someone clicked that
-    # button on the dashboard — which meant that request sat blocked for
-    # however long model-fitting took (worse on Render's free-tier CPU than
-    # in local testing), and felt like the dashboard was stuck/not loading.
-    # Precomputing all of them here means every click is served straight
-    # from _forecast_cache with no live computation at all.
-    for w in LOOKBACK_WINDOWS:
-        _compute(w)
+    # Pre-warm EVERY lookback window, not just "All Available" (None) — but
+    # in a BACKGROUND thread, not inline. Live data now covers all available
+    # history (no fixed cutoff) and each window backtests 7 candidate models
+    # per division via a rolling-origin loop; doing that 4x synchronously at
+    # startup can now take longer than Render's port-scan timeout, which
+    # kills the deploy before Uvicorn ever opens the port ("no open ports
+    # detected... timeout reached") even though nothing actually errors.
+    # Running it in the background lets Uvicorn finish startup and bind the
+    # port immediately; whichever window a request hits before it's warm
+    # just computes inline that one time (same as before this pre-warm
+    # optimization existed), and /health's "divisions_loaded" reports
+    # readiness in the meantime.
+    threading.Thread(target=_prewarm_all_windows, daemon=True).start()
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])
@@ -174,8 +195,9 @@ def health():
     then wrongly report as the service being down."""
     loaded = _forecast_cache.get(None)
     return {
-        "status": "ok",
+        "status": "ok" if loaded else "warming_up",
         "divisions_loaded": list(loaded["divisions"].keys()) if loaded else [],
+        "windows_ready": [w if w is not None else "all" for w in _forecast_cache.keys()],
         "cutoff_date": CUTOFF_DATE,
         "data_source": "live_api" if USE_LIVE_API else "excel_file",
     }
@@ -195,7 +217,7 @@ def get_all_forecasts(
     (see the "lookback_clamped" flag in the response's "meta" section).
     """
     if lookback_years not in _forecast_cache:
-        _compute(lookback_years)
+        _compute_locked(lookback_years)
     return _forecast_cache[lookback_years]
 
 
@@ -206,7 +228,7 @@ def get_division_forecast(
 ):
     """Returns the forecast for a single division (case/spacing-insensitive)."""
     if lookback_years not in _forecast_cache:
-        _compute(lookback_years)
+        _compute_locked(lookback_years)
 
     divisions = _forecast_cache[lookback_years]["divisions"]
     normalized = division_name.lower().replace(" ", "").replace("-", "")
